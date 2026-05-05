@@ -851,6 +851,7 @@ body{
 }
 .btn-edit-user{background:#DBEAFE;color:#1E40AF;}
 .btn-del-user{background:#FEE2E2;color:#991B1B;}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -881,7 +882,7 @@ body{
     <div id="login-err" class="login-err">Username atau password salah.</div>
     <button class="login-btn" onclick="doLogin()">Masuk →</button>
   </div>
-  <div class="login-footer">v3500 · PT. PLN (Persero) UP3 Jayapura</div>
+  <div class="login-footer">v3002 · PT. PLN (Persero) UP3 Jayapura</div>
 </div>
 
 <!-- ══ PWA INSTALL BANNER ══ -->
@@ -1230,83 +1231,83 @@ body{
 
 <script>
 // ══════════════════════════════════════════════════════════════
-//  [AUTH] SISTEM LOGIN MULTI-ROLE – V2 (HASHED PASSWORDS)
-//  Password tidak lagi disimpan dalam plain text.
-//  Menggunakan SHA-256 + salt yang unik per user.
+//  [AUTH] SISTEM LOGIN MULTI-ROLE
+//  Role: superadmin | adminUlp | petugas
+//  Storage: localStorage (users), sessionStorage (session aktif)
 // ══════════════════════════════════════════════════════════════
 
-async function hashPassword(password, salt) {
-  if (!salt) salt = await generateSalt();
-  var enc = new TextEncoder();
-  var data = enc.encode(salt + password);
-  var hash = await crypto.subtle.digest('SHA-256', data);
-  var hashArray = Array.from(new Uint8Array(hash));
-  var hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
-  return { hash: hashHex, salt: salt };
-}
-
-function generateSalt() {
-  var arr = new Uint8Array(16);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
 var SUPER_ADMIN_USERNAME = 'superadmin';
+var SUPER_ADMIN_PASSWORD = 'PLN@Jayapura2025';
+
+// ── DEFAULT_USERS — Akun bawaan saat pertama kali install ────
+// PENTING: Ganti password di sini sebelum deploy ke production!
+// Password minimal 8 karakter, gunakan kombinasi huruf & angka.
+// Setelah deploy, superadmin bisa tambah/hapus user lewat menu Kelola User.
 var DEFAULT_USERS = [
   { username:'superadmin',    password:'PLN@Jayapura2025', nama:'Super Admin',    role:'superadmin', ulp:'' },
-  { username:'admin_abepura', password:'Admin@1234',         nama:'Admin Abepura',  role:'adminUlp',   ulp:'ULP ABEPURA' },
-  { username:'admin_sentani', password:'Admin@1234',         nama:'Admin Sentani',  role:'adminUlp',   ulp:'ULP SENTANI' },
-  { username:'admin_jayapura',password:'Admin@1234',         nama:'Admin Jayapura', role:'adminUlp',   ulp:'ULP JAYAPURA' },
-  { username:'admin_waena',   password:'Admin@1234',         nama:'Admin Waena',    role:'adminUlp',   ulp:'ULP WAENA' }
+  { username:'admin_abepura', password:'Admin@Abe2025',    nama:'Admin Abepura',  role:'adminUlp',   ulp:'ULP ABEPURA' },
+  { username:'admin_sentani', password:'Admin@Stn2025',    nama:'Admin Sentani',  role:'adminUlp',   ulp:'ULP SENTANI' },
+  { username:'admin_jayapura',password:'Admin@Jpr2025',    nama:'Admin Jayapura', role:'adminUlp',   ulp:'ULP JAYAPURA' },
+  { username:'admin_sarmi',   password:'Admin@Srm2025',    nama:'Admin Sarmi',    role:'adminUlp',   ulp:'ULP SARMI' },
+  { username:'admin_arso',    password:'Admin@Ars2025',    nama:'Admin Arso',     role:'adminUlp',   ulp:'ULP ARSO' },
+  { username:'admin_genyem',  password:'Admin@Gym2025',    nama:'Admin Genyem',   role:'adminUlp',   ulp:'ULP GENYEM' }
+  // CATATAN: ULP WAENA dihapus dari default karena tidak ada di ULP_PIN_SERVER & ULP_SHEET_MAP.
+  // Jika ULP WAENA aktif, tambahkan juga di ULP_PIN_SERVER (Code.gs) dan ULP_SHEET_MAP di bawah.
 ];
 
+// ── [Pilihan B] Mapping ULP akun → nilai kolom ULP di sheet GARDU ──────────
+// Format: 'NAMA ULP DI AKUN' : { sheet: 'NILAI DI KOLOM ULP SHEET', prefix: ['KODE...'] }
+// prefix = awalan NO_GARDU yang dipakai ULP ini (untuk deteksi otomatis jika diperlukan)
+// Tambah/ubah sesuai data aktual di spreadsheet kamu.
 var ULP_SHEET_MAP = {
+  // ══ DAFTAR ULP — sesuaikan jika nama di spreadsheet berubah ══
+  // Format: 'NAMA ULP DI LOGIN': { sheet: 'NILAI KOLOM ULP DI SPREADSHEET', prefix: ['AWALAN NO GARDU'] }
+  // PENTING: nilai 'sheet' HARUS sama persis dengan nilai kolom ULP di Google Spreadsheet Anda.
   'ULP ABEPURA':  { sheet: 'ABEPURA',  prefix: ['ABE'] },
   'ULP JAYAPURA': { sheet: 'JAYAPURA', prefix: ['JPR', 'JYP'] },
   'ULP SENTANI':  { sheet: 'SENTANI',  prefix: ['SEN', 'STN'] },
-  'ULP SARMI':    { sheet: 'SARMI',    prefix: ['SRM'] },
+  'ULP SARMI':    { sheet: 'SARMI',    prefix: ['SRM', 'ARB', 'BNG', 'PTM'] },
   'ULP ARSO':     { sheet: 'ARSO',     prefix: ['ARS'] },
-  'ULP GENYEM':   { sheet: 'GENYEM',   prefix: ['GNY', 'GEN'] },
+  'ULP GENYEM':   { sheet: 'GENYEM',   prefix: ['GYM', 'GEN'] },
+  // Jika ULP WAENA ingin diaktifkan:
+  // 1. Uncomment baris di bawah ini
+  // 2. Tambahkan 'ULP WAENA': 'XXXX' di ULP_PIN_SERVER pada Code.gs
+  // 3. Tambahkan akun admin_waena di DEFAULT_USERS di atas
+  // 'ULP WAENA':   { sheet: 'WAENA',    prefix: ['WNA'] },
+  // Tambah ULP baru di sini dengan format yang sama
 };
 
+// Kembalikan nilai kolom sheet dari nama ULP akun
+// Contoh: ulpAkunToSheet('ULP ABEPURA') → 'ABEPURA'
+// Jika tidak ada di map, kembalikan nilai aslinya (fallback toleran)
 function ulpAkunToSheet(ulpAkun) {
   if (!ulpAkun) return '';
   var key = String(ulpAkun).trim().toUpperCase();
   if (ULP_SHEET_MAP[key]) return ULP_SHEET_MAP[key].sheet;
+  // Fallback: coba strip 'ULP ' di depan
   var stripped = key.replace(/^ULP\s+/, '');
   return stripped;
 }
 
-async function initUsers() {
+// Inisialisasi user list di localStorage jika belum ada
+function initUsers() {
   if (!localStorage.getItem('plnUsers')) {
-    var hashedUsers = [];
-    for (var u of DEFAULT_USERS) {
-      var hashData = await hashPassword(u.password);
-      hashedUsers.push({
-        username: u.username,
-        passwordHash: hashData.hash,
-        salt: hashData.salt,
-        nama: u.nama,
-        role: u.role,
-        ulp: u.ulp
-      });
-    }
-    localStorage.setItem('plnUsers', JSON.stringify(hashedUsers));
+    localStorage.setItem('plnUsers', JSON.stringify(DEFAULT_USERS));
   }
   migrateUsers();
 }
 
+// Migrasi otomatis: pastikan semua user di localStorage punya format ulp yang benar
+// (tidak mengubah nilai ulp, hanya memastikan field ada)
 function migrateUsers() {
   try {
     var users = getUsers();
     var changed = false;
     users.forEach(function(u) {
-      if (!u.salt || !u.passwordHash) changed = true;
+      // Pastikan field ulp ada
+      if (u.ulp === undefined) { u.ulp = ''; changed = true; }
     });
-    if (changed) {
-      localStorage.removeItem('plnUsers');
-      initUsers();
-    }
+    if (changed) saveUsers(users);
   } catch(e) {}
 }
 
@@ -1317,12 +1318,14 @@ function saveUsers(users) {
   localStorage.setItem('plnUsers', JSON.stringify(users));
 }
 
+// Ambil session aktif
 function getSession() {
   try { return JSON.parse(sessionStorage.getItem('plnSession') || 'null'); } catch(e) { return null; }
 }
 function setSession(s) { sessionStorage.setItem('plnSession', JSON.stringify(s)); }
 function clearSession() { sessionStorage.removeItem('plnSession'); }
 
+// Toggle show/hide password di halaman login
 function toggleShowPassword() {
   var inp = document.getElementById('login-password');
   var btn = document.getElementById('btn-toggle-pass');
@@ -1335,7 +1338,8 @@ function toggleShowPassword() {
   }
 }
 
-async function doLogin() {
+// Fungsi login
+function doLogin() {
   var username = (document.getElementById('login-username').value || '').trim().toLowerCase();
   var password = (document.getElementById('login-password').value || '').trim();
   var errEl = document.getElementById('login-err');
@@ -1346,15 +1350,12 @@ async function doLogin() {
     errEl.style.display = 'block'; return;
   }
 
-  await initUsers();
+  initUsers();
   var users = getUsers();
   var found = null;
   for (var i = 0; i < users.length; i++) {
-    if (users[i].username === username) {
-      var hashData = await hashPassword(password, users[i].salt);
-      if (hashData.hash === users[i].passwordHash) {
-        found = users[i]; break;
-      }
+    if (users[i].username === username && users[i].password === password) {
+      found = users[i]; break;
     }
   }
   if (!found) {
@@ -1369,6 +1370,7 @@ async function doLogin() {
   onLoginSuccess(found);
 }
 
+// Enter key untuk login
 document.addEventListener('DOMContentLoaded', function() {
   var passEl = document.getElementById('login-password');
   var userEl = document.getElementById('login-username');
@@ -1379,9 +1381,15 @@ document.addEventListener('DOMContentLoaded', function() {
 function doLogout() {
   if (!confirm('Yakin ingin logout?')) return;
   clearSession();
+  // Reset state
   adminSudahLogin = false; currentULP = '';
   allGardu = []; filteredDaftar = []; rekapSudahMuat = false;
   cacheClear();
+  // [FIX #4] Bersihkan DOM agar data ULP lama tidak terlihat di sesi berikutnya
+  document.getElementById('list-gardu').innerHTML = '';
+  document.getElementById('rekap-content').innerHTML = '<div class="loading"><div class="spinner"></div>Memuat rekap...</div>';
+  var kritis = document.getElementById('gardu-kritis-content');
+  if (kritis) kritis.innerHTML = '';
   document.getElementById('modal-admin-panel').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-username').value = '';
@@ -1389,7 +1397,9 @@ function doLogout() {
   document.getElementById('login-err').style.display = 'none';
 }
 
+// Dipanggil setelah login berhasil — atur tampilan sesuai role
 function onLoginSuccess(user) {
+  // Update badge header
   var badge = document.getElementById('topbar-user-badge');
   var uLabel = document.getElementById('topbar-username-label');
   if (badge) {
@@ -1400,6 +1410,7 @@ function onLoginSuccess(user) {
   }
   if (uLabel) uLabel.textContent = user.nama || user.username;
 
+  // Atur icon kunci
   var lockBtn = document.getElementById('btn-admin-lock');
   if (lockBtn) {
     if (user.role === 'superadmin') { lockBtn.style.color = 'var(--pln-kuning)'; lockBtn.title = 'Super Admin'; }
@@ -1407,9 +1418,11 @@ function onLoginSuccess(user) {
     else { lockBtn.style.color = 'rgba(255,255,255,.45)'; lockBtn.title = 'Petugas'; }
   }
 
+  // Tampilkan/sembunyikan tombol Kelola User
   var btnUser = document.getElementById('btn-kelola-user');
   if (btnUser) btnUser.style.display = user.role === 'superadmin' ? '' : 'none';
 
+  // Set state admin & ULP
   if (user.role !== 'superadmin' && user.ulp) {
     currentULP = user.ulp;
     adminSudahLogin = (user.role === 'adminUlp');
@@ -1418,48 +1431,292 @@ function onLoginSuccess(user) {
     adminSudahLogin = (user.role === 'superadmin');
   }
 
+  // Reset filter UI — filter ULP ditentukan oleh session, bukan tag
   activeFilterULP = '';
   activeFilterStatus = '';
 
+  // Sembunyikan filter ULP tag untuk non-superadmin (mereka hanya lihat ULP sendiri)
   var filterULPRow = document.getElementById('filter-ulp-row');
   if (filterULPRow) filterULPRow.style.display = (user.role === 'superadmin') ? '' : 'none';
 
+  // Muat data aplikasi — pass ULP eksplisit agar tidak ada race condition
   var ulpUntukFilter = (user.role !== 'superadmin' && user.ulp) ? user.ulp : '';
   muatDaftarGardu(true, ulpUntukFilter);
 
+  // Reset rekap agar tidak tampil data ULP sebelumnya saat ganti login
   rekapSudahMuat = false;
   var rekapEl = document.getElementById('rekap-content');
   if (rekapEl) rekapEl.innerHTML = '<div class="loading"><div class="spinner"></div>Memuat rekap...</div>';
 }
 
+// Normalisasi string ULP untuk perbandingan yang toleran
 function normalizeULP(s) {
   return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
+// Filter data gardu — terima ulpFilter eksplisit agar tidak bergantung timing getSession()
+// ulpFilter: nilai ULP dari akun user (misal 'ULP ABEPURA')
+// Cocokkan ke kolom ULP di sheet via ULP_SHEET_MAP (misal 'ABEPURA')
 function filterGarduByULP(data, ulpFilter) {
   if (!ulpFilter) return data;
+
+  // Cari nilai sheet yang sesuai dengan ULP akun
   var sheetValue = normalizeULP(ulpAkunToSheet(ulpFilter));
+  // Fallback: coba cocokkan langsung (jika user isi ulp dengan nilai sheet)
   var directValue = normalizeULP(ulpFilter);
+
   var result = data.filter(function(g) {
     var ulpSheet = normalizeULP(g['ULP'] || '');
     return ulpSheet === sheetValue || ulpSheet === directValue;
   });
+
+  // [FIX #5] Console.log dihapus dari production.
+  // Untuk debugging filter ULP, buka Code.gs dan cek nilai kolom ULP di spreadsheet,
+  // lalu sesuaikan ULP_SHEET_MAP di index.html.
+  if (result.length === 0 && data.length > 0) {
+    // Tampilkan peringatan hanya jika ada masalah konfigurasi (tidak mengekspos data)
+    console.warn('[PLN] Peringatan: filter ULP tidak cocok. Cek ULP_SHEET_MAP vs kolom ULP di spreadsheet.');
+  }
   return result;
+}
+
+// Wrapper lama (tetap ada untuk backward compat)
+function filterGarduBySession(data) {
+  var s = getSession();
+  if (!s || s.role === 'superadmin' || !s.ulp) return data;
+  return filterGarduByULP(data, s.ulp);
+}
+
+// Buka menu admin/ULP (mengganti bukaModalAdmin lama)
+function bukaMenuAdmin() {
+  var s = getSession();
+  if (!s) return;
+  // Petugas tidak punya akses menu admin
+  if (s.role === 'petugas') {
+    alert('Anda login sebagai Petugas. Akses ke menu admin tidak tersedia.');
+    return;
+  }
+  // Superadmin langsung masuk (tidak perlu PIN tambahan)
+  if (s.role === 'superadmin') {
+    _tampilkanPanelAdmin(s);
+    return;
+  }
+  // adminUlp — minta PIN dulu sebelum masuk panel
+  _tampilkanModalPinAdmin(s);
+}
+
+function _tampilkanModalPinAdmin(s) {
+  // Reset PIN
+  pinBuffer = '';
+  updatePinDots();
+  var errEl = document.getElementById('pin-error');
+  if (errEl) errEl.style.display = 'none';
+  // Update teks modal sesuai ULP
+  var pinTitle = document.getElementById('pin-modal-title');
+  var pinSub   = document.getElementById('pin-modal-sub');
+  var pinIcon  = document.getElementById('pin-modal-icon');
+  if (pinIcon)  pinIcon.textContent  = '🔐';
+  if (pinTitle) pinTitle.textContent = 'PIN Admin ULP';
+  if (pinSub)   pinSub.textContent   = 'Masukkan PIN untuk ' + (s.ulp || 'ULP Anda');
+  // Tandai mode panel
+  document.getElementById('modal-admin-pin').setAttribute('data-mode', 'panel');
+  // Tampilkan modal
+  document.getElementById('modal-admin-pin').style.display = 'flex';
+}
+
+function _tampilkanPanelAdmin(s) {
+  // Sembunyikan/tampilkan tombol sesuai role
+  var btnTambah = document.querySelector('#admin-panel-actions .btn-blue');
+  var btnEdit   = document.querySelectorAll('#admin-panel-actions .btn-outline')[0];
+  if (btnTambah) btnTambah.style.display = '';
+  if (btnEdit)   btnEdit.style.display   = '';
+
+  var titleEl = document.getElementById('admin-panel-title');
+  var subEl   = document.getElementById('admin-panel-sub');
+  if (s.role === 'superadmin') {
+    if (titleEl) titleEl.textContent = '🔓 Super Admin Aktif';
+    if (subEl)   subEl.textContent   = 'Akses penuh ke semua ULP';
+    document.getElementById('btn-kelola-user').style.display = '';
+  } else {
+    if (titleEl) titleEl.textContent = '🔓 Admin ULP: ' + s.ulp;
+    if (subEl)   subEl.textContent   = 'Akses terbatas untuk ULP Anda';
+    document.getElementById('btn-kelola-user').style.display = 'none';
+  }
+  document.getElementById('modal-admin-panel').style.display = 'flex';
+}
+
+// ── Manajemen User (Super Admin) ──────────────────────────────
+function bukaModalUser() {
+  renderUserList();
+  tutupFormUser();
+  document.getElementById('modal-user-mgmt').style.display = 'flex';
+}
+
+function renderUserList() {
+  var users = getUsers();
+  var html = '<div class="user-table-row user-table-head"><span>User</span><span>Role / ULP</span><span></span><span></span></div>';
+  users.forEach(function(u, i) {
+    var roleStr = u.role === 'superadmin' ? '⭐ Super Admin' : u.role === 'adminUlp' ? '🟢 Admin ULP' : '🔵 Petugas';
+    var ulpStr  = u.ulp ? ('<br><span style="opacity:.6;font-size:9px;">'+esc(u.ulp)+'</span>') : '';
+    var canDel  = u.role !== 'superadmin';
+    html += '<div class="user-table-row">';
+    html += '<span><b>'+esc(u.username)+'</b><br><span style="opacity:.6;font-size:9px;">'+esc(u.nama)+'</span></span>';
+    html += '<span>'+roleStr+ulpStr+'</span>';
+    html += '<button class="user-action-btn btn-edit-user" onclick="editUser('+i+')">✏️ Edit</button>';
+    html += canDel ? '<button class="user-action-btn btn-del-user" onclick="hapusUser('+i+')">🗑️</button>' : '<span></span>';
+    html += '</div>';
+  });
+  document.getElementById('user-list-wrap').innerHTML = html;
+}
+
+function bukaFormTambahUser() {
+  document.getElementById('uf-edit-idx').value = '';
+  document.getElementById('uf-username').value = '';
+  document.getElementById('uf-password').value = '';
+  document.getElementById('uf-nama').value = '';
+  document.getElementById('uf-role').value = 'petugas';
+  document.getElementById('uf-ulp').value = '';
+  document.getElementById('uf-msg').style.display = 'none';
+  document.getElementById('user-form-title').textContent = 'Tambah User Baru';
+  onUFRoleChange();
+  document.getElementById('user-form-wrap').style.display = 'block';
+}
+
+function editUser(idx) {
+  var users = getUsers();
+  var u = users[idx];
+  if (!u) return;
+  document.getElementById('uf-edit-idx').value = idx;
+  document.getElementById('uf-username').value = u.username;
+  document.getElementById('uf-password').value = u.password;
+  document.getElementById('uf-nama').value = u.nama;
+  document.getElementById('uf-role').value = u.role;
+  document.getElementById('uf-ulp').value = u.ulp || '';
+  document.getElementById('uf-msg').style.display = 'none';
+  document.getElementById('user-form-title').textContent = 'Edit User: ' + u.username;
+  onUFRoleChange();
+  document.getElementById('user-form-wrap').style.display = 'block';
+}
+
+function tutupFormUser() {
+  document.getElementById('user-form-wrap').style.display = 'none';
+}
+
+function onUFRoleChange() {
+  var role = document.getElementById('uf-role').value;
+  var wrap = document.getElementById('uf-ulp-wrap');
+  if (wrap) wrap.style.display = (role === 'superadmin') ? 'none' : '';
+}
+
+function simpanUser() {
+  var idx   = document.getElementById('uf-edit-idx').value;
+  var uname = (document.getElementById('uf-username').value || '').trim().toLowerCase();
+  var pass  = (document.getElementById('uf-password').value || '').trim();
+  var nama  = (document.getElementById('uf-nama').value || '').trim();
+  var role  = document.getElementById('uf-role').value;
+  var ulp   = document.getElementById('uf-ulp').value;
+  var msgEl = document.getElementById('uf-msg');
+
+  function showMsg(msg, isErr) {
+    msgEl.textContent = msg;
+    msgEl.style.background = isErr ? '#FEE2E2' : '#D1FAE5';
+    msgEl.style.color = isErr ? '#991B1B' : '#065F46';
+    msgEl.style.display = 'block';
+  }
+
+  if (!uname || !pass || !nama) return showMsg('Username, password, dan nama wajib diisi.', true);
+  if (pass.length < 6)          return showMsg('Password minimal 6 karakter.', true);
+  if (role !== 'superadmin' && !ulp) return showMsg('ULP wajib dipilih untuk role ini.', true);
+
+  var users = getUsers();
+  var editIdx = idx !== '' ? parseInt(idx) : -1;
+
+  // [FIX #6] Lindungi akun superadmin dari perubahan role
+  if (editIdx >= 0 && users[editIdx] && users[editIdx].role === 'superadmin' && role !== 'superadmin') {
+    return showMsg('Role superadmin tidak bisa diubah ke role lain.', true);
+  }
+  // Lindungi juga agar tidak ganti username superadmin jika hanya 1 superadmin tersisa
+  if (editIdx >= 0 && users[editIdx] && users[editIdx].role === 'superadmin') {
+    var superadminCount = users.filter(function(u, i){ return u.role === 'superadmin' && i !== editIdx; }).length;
+    if (superadminCount === 0 && role !== 'superadmin') {
+      return showMsg('Tidak bisa mengubah satu-satunya akun superadmin.', true);
+    }
+  }
+
+  // Cek duplikat username (kecuali saat edit diri sendiri)
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].username === uname && i !== editIdx) {
+      return showMsg('Username "' + uname + '" sudah digunakan.', true);
+    }
+  }
+
+  var userObj = { username: uname, password: pass, nama: nama, role: role, ulp: role === 'superadmin' ? '' : ulp };
+  if (editIdx >= 0) {
+    users[editIdx] = userObj;
+  } else {
+    users.push(userObj);
+  }
+  saveUsers(users);
+  showMsg('User berhasil disimpan.', false);
+  setTimeout(function() { renderUserList(); tutupFormUser(); }, 1000);
+}
+
+function hapusUser(idx) {
+  var users = getUsers();
+  var u = users[idx];
+  if (!u) return;
+  if (u.role === 'superadmin') { alert('Akun super admin tidak bisa dihapus.'); return; }
+  if (!confirm('Hapus user "' + u.username + '"? Tindakan ini tidak bisa dibatalkan.')) return;
+  users.splice(idx, 1);
+  saveUsers(users);
+  renderUserList();
 }
 
 // ══════════════════════════════════════════════════════════════
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbyxtyj6R5YwOUvVUwk5cclVXzvWtwNR6toWDebkTg6eIjkNWB8eeD-4eoUEfp6A2KWo/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbwkq1N2goI9ZB6uC5XpzUmN9Hmah1vYcVizzEIzdmM7oioCbFLMFOMX9QHtS0WtML4D/exec';
+
+// ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
+// Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
 var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1slCbbAfkdZdIiPbJqyaq9gcPNKPd6Zu10PMNI2I-K_o/edit';
 var allGardu = [], filteredDaftar = [], html5QrCode = null, scannerAktif = false;
 var tabSebelumDetail = 0, rekapSudahMuat = false, adminSudahLogin = false, pinBuffer = '', currentTab = 0;
 
-// ══════════════════════════════════════════════════════════════
-//  API CALLS & CACHE
-// ══════════════════════════════════════════════════════════════
-window.onload = async function(){
-  await initUsers();
+// ══ PIN ADMIN — Digunakan untuk otorisasi tambah/edit gardu ke server ══
+// PIN ini BERBEDA dari password login user. PIN ini dikirim ke Apps Script.
+// Ganti nilai di bawah dengan PIN rahasia yang sama dengan di Apps Script Anda.
+// CATATAN: Fitur login per-ULP kini menggunakan sistem username/password (bukan PIN).
+//          ULP_PIN_MAP di bawah hanya digunakan untuk otorisasi tambah/edit gardu ke server.
+var ULP_PIN_MAP = {
+  // ══ PIN OTORISASI TAMBAH/EDIT GARDU ══════════════════════════
+  // PIN ini dikirim ke Apps Script saat tambah/edit gardu.
+  // HARUS sama persis dengan yang ada di Code.gs (ADMIN_PIN & ULP_PIN_SERVER).
+  //
+  // ⚠️  WAJIB GANTI SEMUA PIN INI SEBELUM DEPLOY KE PRODUCTION!
+  //     PIN minimal 6 digit, acak, berbeda antar ULP.
+  //
+  // CARA GANTI PIN:
+  // 1. Tentukan PIN baru (minimal 6 digit) untuk masing-masing ULP
+  // 2. Ganti nilai di sini
+  // 3. Ganti nilai yang SAMA di Code.gs bagian ADMIN_PIN & ULP_PIN_SERVER
+  // 4. Upload ulang index.html ke GitHub / hosting
+  // 5. Deploy ulang Apps Script (New Deployment — WAJIB agar perubahan aktif)
+  // ════════════════════════════════════════════════════════════
+  'ADMIN':          '947261',  // PIN superadmin — GANTI sebelum production!
+  'ULP ABEPURA':    '318452',  // PIN khusus ULP Abepura — GANTI!
+  'ULP JAYAPURA':   '582917',  // PIN khusus ULP Jayapura — GANTI!
+  'ULP SENTANI':    '743816',  // PIN khusus ULP Sentani — GANTI!
+  'ULP SARMI':      '261748',  // PIN khusus ULP Sarmi — GANTI!
+  'ULP ARSO':       '894523',  // PIN khusus ULP Arso — GANTI!
+  'ULP GENYEM':     '637190',  // PIN khusus ULP Genyem — GANTI!
+  // Jika ULP WAENA diaktifkan, tambahkan di sini:
+  // 'ULP WAENA':   'XXXXXX',  // Harus sama dengan Code.gs ULP_PIN_SERVER
+};
+var currentULP = '';  // '' = semua ULP (superadmin atau belum login)
+
+window.onload = function(){
+  initUsers();
   var session = getSession();
   if (session) {
     document.getElementById('login-screen').style.display = 'none';
@@ -1472,10 +1729,48 @@ window.onload = async function(){
   }
   document.getElementById('scanner-manual').addEventListener('keydown', function(e){ if(e.key==='Enter') cariGarduDariScanner(); });
   document.getElementById('scanner-modal').addEventListener('click', function(e){ if(e.target===this) tutupScanner(); });
+
+  // [FIX #1] Daftarkan Service Worker agar fitur PWA & offline aktif
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      reg.addEventListener('updatefound', function() {
+        var nw = reg.installing;
+        if (nw) {
+          nw.addEventListener('statechange', function() {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+    }).catch(function(err) {
+      console.warn('[PWA] Service Worker gagal terdaftar:', err);
+    });
+    // Terima pesan dari SW (SYNC_SUCCESS, dll)
+    navigator.serviceWorker.addEventListener('message', function(e) {
+      if (!e.data) return;
+      if (e.data.type === 'SYNC_SUCCESS') {
+        var msg = e.data.message || '☁️ Data berhasil disinkronkan.';
+        var toast = document.getElementById('scan-toast');
+        var toastId = document.getElementById('toast-gardu-id');
+        if (toast && toastId) {
+          toastId.textContent = msg;
+          toast.classList.add('show');
+          setTimeout(function(){ toast.classList.remove('show'); }, 3500);
+        }
+      }
+    });
+  }
 };
 
 function apiGet(params, cb) {
-  var url = API_URL + '?' + Object.keys(params).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
+  // [FIX #3] Filter param kosong/undefined agar tidak dikirim sebagai 'undefined' atau ''
+  var filtered = {};
+  Object.keys(params).forEach(function(k) {
+    var v = params[k];
+    if (v !== undefined && v !== null && v !== '') filtered[k] = v;
+  });
+  var url = API_URL + '?' + Object.keys(filtered).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(filtered[k]); }).join('&');
   var controller = new AbortController();
   var done = false;
   var timer = setTimeout(function(){
@@ -1510,26 +1805,47 @@ function bukaTab(id, idx){
   if(id==='tab-rekap' && !rekapSudahMuat) muatRekap();
 }
 
-// ══════════════════════════════════════════════════════════════
-//  DAFTAR GARDU
-// ══════════════════════════════════════════════════════════════
+// ── DAFTAR GARDU ────────────────────────────────────────────
 var activeFilterULP = '', activeFilterStatus = '';
+function setFilterStatus(status){
+  activeFilterStatus = status;
+  document.querySelectorAll('#filter-status-row .tag').forEach(function(t){ t.classList.remove('active'); });
+  var activeTags = document.querySelectorAll('#filter-status-row .tag');
+  if(!status) { if(activeTags[0]) activeTags[0].classList.add('active'); }
+  applyDaftarFilter();
+}
+function setFilterULP(ulp){
+  activeFilterULP = ulp;
+  document.querySelectorAll('#filter-ulp-row .tag').forEach(function(t){ t.classList.toggle('active', t.textContent.trim()===(ulp||'Semua')); });
+  applyDaftarFilter();
+}
+function handleSearchDaftar(kw){ applyDaftarFilter(); }
+function gotoFilterDaftar(status){
+  bukaTab('tab-daftar',0);
+  activeFilterULP='';
+  document.querySelectorAll('#filter-ulp-row .tag').forEach(function(t){ t.classList.toggle('active', t.textContent.trim()==='Semua'); });
+  setFilterStatus(status);
+}
+
 var CACHE_TTL = 30*60*1000, _cache = {};
 function cacheSet(k,d){ _cache[k]={data:d,ts:Date.now()}; }
 function cacheGet(k){ var c=_cache[k]; if(!c) return null; if(Date.now()-c.ts>CACHE_TTL){delete _cache[k]; return null;} return c.data; }
 function cacheClear(k){ if(k) delete _cache[k]; else _cache={}; }
 
 function muatDaftarGardu(force, ulpFilter){
+  // ulpFilter: string ULP eksplisit (opsional). Jika tidak diisi, ambil dari session.
   var s = getSession();
   var activeULP = (ulpFilter !== undefined) ? ulpFilter : ((s && s.role !== 'superadmin') ? (s.ulp || '') : '');
 
   var cached = !force && cacheGet('daftarGardu');
   if(cached){
+    // [FIX #7] Jika cache tersedia, render langsung TANPA set loading (mencegah flash UI)
     var filtered = filterGarduByULP(cached, activeULP);
     allGardu=filtered; filteredDaftar=filtered;
     buildFilterULP(filtered); renderDaftarGardu(filtered); return;
   }
 
+  // Hanya tampilkan loading jika benar-benar perlu fetch dari server
   document.getElementById('list-gardu').innerHTML =
     '<div class="loading"><div class="spinner"></div>Memuat daftar gardu...</div>';
 
@@ -1553,6 +1869,8 @@ function muatDaftarGardu(force, ulpFilter){
   });
 }
 
+
+// ── [F1] Data Freshness Banner ────────────────────────────────
 function updateFreshnessBanner(generatedAtStr) {
   var banner = document.getElementById('data-freshness-banner');
   var iconEl  = document.getElementById('freshness-icon');
@@ -1562,6 +1880,8 @@ function updateFreshnessBanner(generatedAtStr) {
   banner.className = 'data-freshness-banner freshness-ok';
   banner.style.display = 'flex';
   if (iconEl) iconEl.textContent = '🕐';
+  // _generatedAt = waktu server Apps Script men-generate cache, BUKAN waktu data di-update di spreadsheet
+  // Data aktual di spreadsheet mungkin lebih lama — tekan Refresh untuk paksa reload dari sheet
   textEl.innerHTML = '<b>Data per ' + esc(generatedAtStr) + ' WIT</b>' +
     '&nbsp;&nbsp;·&nbsp;&nbsp;<span class="freshness-date" style="color:var(--pln-text3);">Waktu cache server · tekan Refresh untuk data terbaru dari spreadsheet</span>';
 }
@@ -1573,45 +1893,26 @@ function buildFilterULP(data){
   document.getElementById('filter-ulp-row').innerHTML = '<span class="tag active" onclick="setFilterULP(\'\')">Semua</span>' + ulps.map(function(u){ return '<span class="tag" onclick="setFilterULP(\''+esc(u)+'\')">'+esc(u)+'</span>'; }).join('');
 }
 
-function setFilterStatus(status){
-  activeFilterStatus = status;
-  document.querySelectorAll('#filter-status-row .tag').forEach(function(t){ t.classList.remove('active'); });
-  var activeTags = document.querySelectorAll('#filter-status-row .tag');
-  if(!status) { if(activeTags[0]) activeTags[0].classList.add('active'); }
-  applyDaftarFilter();
-}
-function setFilterULP(ulp){
-  activeFilterULP = ulp;
-  document.querySelectorAll('#filter-ulp-row .tag').forEach(function(t){ t.classList.toggle('active', t.textContent.trim()===(ulp||'Semua')); });
-  applyDaftarFilter();
-}
-function handleSearchDaftar(kw){ applyDaftarFilter(); }
-
 function applyDaftarFilter(){
   currentPage = 1;
   var kw = (document.getElementById('search-daftar').value||'').toLowerCase().trim();
+  // allGardu sudah di-filter oleh session (filterGarduBySession) saat load
+  // activeFilterULP hanya untuk superadmin yang memilih tag ULP tertentu
   var result = allGardu.filter(function(g){
     if(!g) return false;
     var matchULP = !activeFilterULP || normalizeULP(g['ULP']||'') === normalizeULP(activeFilterULP);
     var matchKW = !kw || (g['NO_GARDU']||'').toLowerCase().includes(kw) || (g['ULP']||'').toLowerCase().includes(kw) || (g['PENYULANG']||'').toLowerCase().includes(kw) || (g['ALAMAT']||'').toLowerCase().includes(kw);
     var matchStatus = true;
-    if(activeFilterStatus==='overdue'){
-      var hs = g['_hariSejak'];
-      matchStatus = hs===null||hs>90;
-    }
-    else if(activeFilterStatus==='beban'){
-      var pb = parseFloat(g['_lastBeban']);
-      matchStatus = !isNaN(pb)&&pb>80;
-    }
-    else if(activeFilterStatus==='belum'){
-      matchStatus = !g['_lastInspeksi']||g['_lastInspeksi']==='';
-    }
+    if(activeFilterStatus==='overdue'){ var hs = g['_lastInspeksi']?Math.floor((new Date()-new Date(g['_lastInspeksi']))/86400000):null; matchStatus = hs===null||hs>90; }
+    else if(activeFilterStatus==='beban'){ var pb = parseFloat(g['_lastBeban']); matchStatus = !isNaN(pb)&&pb>80; }
+    else if(activeFilterStatus==='belum'){ matchStatus = !g['_lastInspeksi']||g['_lastInspeksi']===''; }
     return matchULP && matchKW && matchStatus;
   });
   filteredDaftar = result;
   renderDaftarGardu(result);
 }
 
+// ══ PAGINATION STATE & CONTROLS ══════════════════════════════
 var currentPage = 1;
 var PAGE_SIZE   = 50;
 var totalPages  = 1;
@@ -1642,7 +1943,23 @@ function renderDaftarGardu(data){
   var el = document.getElementById('list-gardu');
   var wrap = document.getElementById('pagination-wrap');
   if(!data||!data.length){
-    el.innerHTML='<div class="empty-state">🏚️ Tidak ada gardu ditemukan.</div>';
+    // Cek apakah ini karena filter ULP session atau memang tidak ada data
+    var s = getSession();
+    var rawCache = cacheGet('daftarGardu');
+    var totalRaw = rawCache ? rawCache.length : 0;
+    var ulpMsg = '';
+    if (s && s.role !== 'superadmin' && s.ulp && totalRaw > 0) {
+      // Ada data di cache tapi tidak ada yang cocok dengan ULP session
+      var sheetVal = ulpAkunToSheet(s.ulp);
+      var ulpUnik = {};
+      rawCache.forEach(function(g){ if(g['ULP']) ulpUnik[(g['ULP']||'').trim()] = true; });
+      ulpMsg = '<div style="margin-top:8px;font-size:var(--fs-xs);color:var(--pln-text3);">'+
+        'Anda login sebagai <b>'+esc(s.ulp)+'</b> → cari kolom ULP: <b>"'+esc(sheetVal)+'"</b><br>'+
+        'ULP yang ada di data sheet: <b>'+Object.keys(ulpUnik).map(function(u){return '"'+esc(u)+'"';}).join(', ')+'</b><br>'+
+        '<span style="color:var(--pln-red);">Jika tidak cocok, sesuaikan <code>ULP_SHEET_MAP</code> di index.html.</span>'+
+        '</div>';
+    }
+    el.innerHTML='<div class="empty-state">🏚️ Tidak ada gardu ditemukan.'+ulpMsg+'</div>';
     if(wrap) wrap.style.display='none'; return;
   }
   totalPages=Math.max(1,Math.ceil(data.length/PAGE_SIZE));
@@ -1665,17 +1982,12 @@ function renderDaftarGardu(data){
   el.innerHTML = pageData.map(function(g){
     if(!g) return '';
     var isAktif = (g['STATUS_OPERASIONAL']||'').toUpperCase()==='AKTIF';
-    var hariSejak = g['_hariSejak'];
-    var hariSejakLabel = '';
-    if(hariSejak===null || hariSejak===undefined){
-      hariSejakLabel = '⚠️ Belum ada inspeksi';
-    } else if(hariSejak>90){
-      hariSejakLabel = '🔴 TERLAMBAT · '+hariSejak+' hari';
-    } else if(hariSejak>60){
-      hariSejakLabel = '🟡 '+hariSejak+' hari · Segera ukur';
-    } else {
-      hariSejakLabel = '🕐 '+g['_lastInspeksi']+' · '+esc(g['_lastPetugas']||'');
-    }
+    var hariSejak = g['_lastInspeksi'] ? Math.floor((new Date()-new Date(g['_lastInspeksi']))/86400000) : null;
+    var overdueLabel='', overdueStyle='';
+    if(hariSejak===null){ overdueLabel='⚠️ Belum ada inspeksi'; overdueStyle='color:#C0392B;font-weight:600;'; }
+    else if(hariSejak>90){ overdueLabel='🔴 TERLAMBAT · '+hariSejak+' hari'; overdueStyle='color:#C0392B;font-weight:700;'; }
+    else if(hariSejak>60){ overdueLabel='🟡 '+hariSejak+' hari · Segera ukur'; overdueStyle='color:#D97706;font-weight:600;'; }
+    else{ overdueLabel='🕐 '+g['_lastInspeksi']+' · '+esc(g['_lastPetugas']||''); overdueStyle='color:var(--pln-text3);'; }
     var bebanBadge = '';
     if(g['_lastBeban']!==''&&g['_lastBeban']!==null){
       var pb = parseFloat(g['_lastBeban']);
@@ -1687,7 +1999,7 @@ function renderDaftarGardu(data){
         '<div class="gardu-id">'+esc(g['NO_GARDU']||'')+'</div>'+
         '<div class="gardu-name">'+esc(g['ULP']||'')+' — '+esc(g['PENYULANG']||'')+'</div>'+
         '<div class="gardu-sub">'+esc(g['ALAMAT']||'')+'</div>'+
-        '<div class="gardu-sub">'+hariSejakLabel+'</div>'+
+        '<div class="gardu-sub" style="'+overdueStyle+'">'+overdueLabel+'</div>'+
       '</div>'+
       '<div class="gardu-right">'+
         '<span class="badge '+(isAktif?'badge-aktif':'badge-nonaktif')+'">'+(isAktif?'Aktif':'Non-Aktif')+'</span>'+
@@ -1696,15 +2008,7 @@ function renderDaftarGardu(data){
   }).join('');
 }
 
-// ══════════════════════════════════════════════════════════════
-//  DETAIL GARDU & RIWAYAT
-// ══════════════════════════════════════════════════════════════
-function tutupDetail(){
-  document.getElementById('detail-view').style.display = 'none';
-  document.getElementById('bottom-nav').style.display = 'flex';
-  bukaTab(TAB_IDS[tabSebelumDetail], tabSebelumDetail);
-}
-
+// ── DETAIL GARDU ─────────────────────────────────────────────
 function bukaDetailGardu(noGardu){
   tabSebelumDetail = currentTab;
   TAB_IDS.forEach(function(tid){ document.getElementById(tid).classList.remove('active'); });
@@ -1714,38 +2018,16 @@ function bukaDetailGardu(noGardu){
   document.getElementById('detail-content').innerHTML = '<div class="loading"><div class="spinner"></div>Memuat detail...</div>';
   apiGet({action:'getDetailLengkap', noGardu:noGardu}, function(res){
     if(res.status!=='ok' || !res.data){
-      document.getElementById('detail-content').innerHTML = '<div class="alert alert-err">❌ '+(res.message||'Data gardu tidak ditemukan.')+'</div><button class="btn btn-outline" onclick="tutupDetail()">Kembali</button>';
+      // [FIX #8] Selalu tampilkan tombol kembali + restore bottom-nav pada error
+      document.getElementById('detail-content').innerHTML =
+        '<div class="alert alert-err" style="margin:var(--sp-md);">❌ '+(res.message||'Data gardu tidak ditemukan.')+'</div>'+
+        '<div style="padding:0 var(--sp-md);"><button class="btn btn-outline" style="width:100%;" onclick="tutupDetail()">← Kembali</button></div>';
+      // Pastikan bottom-nav dikembalikan agar user bisa navigasi
+      document.getElementById('bottom-nav').style.display = 'flex';
       return;
     }
     renderDetailGardu(res.data, res.riwayat||[]);
   });
-}
-
-function formatTgl(raw) {
-  if (!raw) return '—';
-  var s = String(raw).trim();
-  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[3]+'/'+m[2]+'/'+m[1].slice(2);
-  var d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    var dd = String(d.getDate()).padStart(2,'0');
-    var mm = String(d.getMonth()+1).padStart(2,'0');
-    var yy = String(d.getFullYear()).slice(2);
-    return dd+'/'+mm+'/'+yy;
-  }
-  return s;
-}
-
-function normVal(v) {
-  if (v === null || v === undefined) return null;
-  var s = String(v).trim();
-  if (s === '' || s === '-' || s.toLowerCase() === 'null') return null;
-  return s;
-}
-
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function renderDetailGardu(g, riwayat){
@@ -1759,6 +2041,7 @@ function renderDetailGardu(g, riwayat){
   var keterangan = String(g['KETERANGAN'] || '').trim();
   var html = '';
 
+  // ── Header card ──
   html += '<div class="card" style="padding-bottom:var(--sp-sm);">';
   html += '<div style="display:flex;align-items:center;gap:var(--sp-sm);margin-bottom:var(--sp-xs);">';
   html += '<div style="font-family:monospace;font-size:var(--fs-lg);font-weight:800;color:var(--pln-biru2);">'+esc(g['NO_GARDU']||'—')+'</div>';
@@ -1782,6 +2065,7 @@ function renderDetailGardu(g, riwayat){
   html += '</div>';
   html += '</div>';
 
+  // ── Keterangan ──
   html += '<div class="card" style="padding:var(--sp-sm) var(--sp-md);">';
   html += '<div style="display:flex;align-items:flex-start;gap:8px;">';
   html += '<span style="font-size:var(--fs-md);flex-shrink:0;">📝</span>';
@@ -1795,6 +2079,7 @@ function renderDetailGardu(g, riwayat){
   html += '</div></div>';
   html += '</div>';
 
+  // ── GPS Mini Map ──
   if (hasGps) {
     var embedUrl = 'https://maps.google.com/maps?q='+lat+','+lon+'&z=17&output=embed';
     html += '<div class="gps-map-wrap" style="cursor:pointer;position:relative;margin-bottom:var(--sp-sm);" onclick="window.open(\''+mapsUrl+'\',\'_blank\',\'noopener\')">';
@@ -1806,6 +2091,7 @@ function renderDetailGardu(g, riwayat){
     html += '</div>';
   }
 
+  // ── Riwayat Inspeksi ──
   html += '<div class="sec">Riwayat Inspeksi ('+riwayat.length+')</div>';
   if (!riwayat.length) {
     html += '<div class="empty-state"><div class="empty-icon">📋</div>Belum ada data inspeksi.</div>';
@@ -1817,6 +2103,15 @@ function renderDetailGardu(g, riwayat){
       var bebanColor = prosen === null ? '#94A3B8' : prosen > 80 ? 'var(--pln-red)' : prosen > 60 ? 'var(--pln-orange)' : 'var(--pln-green)';
       var bebanPct   = prosen !== null ? Math.min(100, prosen) : 0;
       var collapseId = 'riwayat-body-'+idx;
+
+      var rTotal = normVal(r['R TOTAL']); var sTotal = normVal(r['S TOTAL']); var tTotal = normVal(r['T TOTAL']); var nTotal = normVal(r['N TOTAL']);
+      var rN = normVal(r['R - N']); var sN = normVal(r['S - N']); var tN = normVal(r['T - N']);
+      var rs = normVal(r['R - S']); var st = normVal(r['S - T']); var rt = normVal(r['R - T']);
+      var thdR = normVal(r['THD-R']); var thdS = normVal(r['THD-S']); var thdT = normVal(r['THD-T']);
+      var ipeakR = normVal(r['IPEAK-R']); var ipeakS = normVal(r['IPEAK-S']); var ipeakT = normVal(r['IPEAK-T']);
+      var tpfR = normVal(r['TPF-R']); var tpfS = normVal(r['TPF-S']); var tpfT = normVal(r['TPF-T']);
+      var dayaKva = normVal(r['DAYA']); var dayaPakai = normVal(r['DAYA PAKAI']);
+      var tidakSeimbang = normVal(r['TDKSEIMBANG']); var fasa = normVal(r['FASA']);
 
       html += '<div class="riwayat-card">';
       html += '<div class="riwayat-header">';
@@ -1834,16 +2129,217 @@ function renderDetailGardu(g, riwayat){
       html += '<span class="badge '+bc+'" style="flex-shrink:0;">'+prosenLabel+'</span>';
       html += '</div>';
 
-      // ... detail pengukuran sama seperti sebelumnya
+
+      // ── [F3] Ketidakseimbangan Fasa Alert ──────────────────
+      var rTot = parseFloat(rTotal), sTot = parseFloat(sTotal), tTot = parseFloat(tTotal), nTot = parseFloat(nTotal);
+      if (!isNaN(rTot) && !isNaN(sTot) && !isNaN(tTot) && rTot > 0 && sTot > 0 && tTot > 0) {
+        var avgFasa = (rTot + sTot + tTot) / 3;
+        var maxDev = Math.max(Math.abs(rTot-avgFasa), Math.abs(sTot-avgFasa), Math.abs(tTot-avgFasa));
+        var imbalPct = avgFasa > 0 ? (maxDev/avgFasa)*100 : 0;
+        // Standar: IEC 50160:2010 & PLN SPLN D3.002-1
+        // Zona hijau: <5% | Zona kuning (peringatan): 5–10% | Zona merah (kritis): >10%
+        var imbClass, imbIcon, imbLabel, imbRec;
+        if (imbalPct > 10) {
+          imbClass='imbalance-kritis'; imbIcon='🔴';
+          imbLabel='Ketidakseimbangan KRITIS ('+imbalPct.toFixed(1)+'%) — Melebihi batas IEC 50160';
+          imbRec='<b>Referensi: IEC 50160:2010 &amp; PLN SPLN D3.002-1</b> — Batas toleransi maksimum ketidakseimbangan tegangan/beban fasa adalah <b>10%</b>. Kondisi ini menyebabkan: panas berlebih pada belitan trafo (derating factor), arus netral tinggi, kerusakan motor 3 fasa pelanggan, dan rugi-rugi tambahan. <b>Tindakan SEGERA:</b> redistribusi beban antar fasa, koordinasi dengan ULP setempat. HAR Prioritas Tinggi.';
+        } else if (imbalPct > 5) {
+          imbClass='imbalance-warn'; imbIcon='🟡';
+          imbLabel='Ketidakseimbangan PERINGATAN ('+imbalPct.toFixed(1)+'%) — Zona waspada IEC 50160';
+          imbRec='<b>Referensi: IEC 50160:2010</b> — Ketidakseimbangan fasa >5% memasuki zona peringatan (batas ideal &lt;2%, batas waspada 5%). Efisiensi trafo menurun dan belitan menerima tegangan tidak simetris. Rencanakan pemerataan beban antar jurusan pada inspeksi berikutnya sebelum melampaui batas kritis 10%.';
+        } else {
+          imbClass='imbalance-ok'; imbIcon='🟢';
+          imbLabel='Fasa Seimbang ('+imbalPct.toFixed(1)+'%) — Sesuai IEC 50160';
+          imbRec='Distribusi beban 3 fasa dalam kondisi baik. <b>IEC 50160:2010:</b> nilai &lt;2% ideal, &lt;5% dapat diterima, &lt;10% batas toleransi.';
+        }
+        // Arus netral tinggi check
+        var nAlertHtml = '';
+        if (!isNaN(nTot) && nTot > avgFasa * 0.5) {
+          nAlertHtml = '<div style="margin-top:6px;padding:4px 8px;background:rgba(168,7,26,.08);border-radius:4px;font-size:var(--fs-xs);font-weight:700;">'+
+            '⚡ Arus netral tinggi: <b>'+nTot.toFixed(1)+' A</b> ('+((nTot/avgFasa)*100).toFixed(0)+'% dari rata-rata fasa) — '+
+            'risiko kebakaran kabel netral. Periksa squeezing & balance beban.</div>';
+        }
+        // Fasa bar chart
+        var fasaMax = Math.max(rTot, sTot, tTot, nTot||0);
+        var fasaBars = [['R',rTot,'#C0392B'],['S',sTot,'#27AE60'],['T',tTot,'#2980B9'],['N',isNaN(nTot)?null:nTot,'#8E44AD']];
+        var fasaBarHtml = '<div class="fasa-bars">';
+        fasaBars.forEach(function(fb){
+          var pct = fb[1]!==null && fasaMax>0 ? Math.min(100,fb[1]/fasaMax*100) : 0;
+          fasaBarHtml += '<div class="fasa-bar-item">'+
+            '<div class="fasa-bar-label">'+fb[0]+'</div>'+
+            '<div class="fasa-bar-track"><div class="fasa-bar-fill" style="height:'+pct+'%;background:'+fb[2]+';width:100%;"></div></div>'+
+            '<div class="fasa-bar-val">'+(fb[1]!==null?fb[1].toFixed(0):'—')+'</div>'+
+          '</div>';
+        });
+        fasaBarHtml += '</div>';
+        html += '<div class="imbalance-alert '+imbClass+'" style="margin:var(--sp-xs) var(--sp-md);">';
+        html += '<div class="imbalance-header">'+imbIcon+' '+imbLabel+'</div>';
+        html += '<div class="imbalance-meter"><div class="imbalance-meter-fill" style="width:'+Math.min(imbalPct,100).toFixed(1)+'%;background:'+(imbalPct>10?'#C0392B':imbalPct>5?'#D97706':'#059669')+';"></div></div>';
+        html += fasaBarHtml;
+        html += nAlertHtml;
+        html += '<div class="imbalance-rec">💡 '+imbRec+'</div>';
+        html += '</div>';
+      }
+
+      // ── [F3] Validasi Anomali Data ──────────────────────────
+      if (r['_anomali']) {
+        html += '<div class="anomali-detail-box" style="margin:0 var(--sp-md) var(--sp-xs);">'+
+          '⚠️ <b>Peringatan Data Mencurigakan:</b> '+esc(r['_anomaliPesan']||'')+'<br>'+
+          '<span style="opacity:.8;">Nilai di luar batas wajar — mohon verifikasi ulang hasil ukur dengan petugas.</span>'+
+          '</div>';
+      }
+
       html += '<div id="'+collapseId+'" style="display:none;">';
       html += '<div class="riwayat-body">';
-      // ... (kode detail pengukuran yang panjang, tidak ada perubahan)
+
+      html += '<div class="ukur-section-title">⚡ Info Umum</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:8px;">';
+      html += ukurCell2('Daya Trafo', dayaKva, 'kVA');
+      html += ukurCell2('Daya Pakai', dayaPakai, 'kVA');
+      html += ukurCell2('Fasa', fasa, '');
+      html += ukurCell2('Tdk Seimbang', tidakSeimbang, '%');
+      html += '</div>';
+
+      html += '<div class="ukur-section-title">🔴🟡🔵 Arus Total (A)</div>';
+      html += '<div class="ukur-grid">';
+      html += ukurCell('R', rTotal, 'A');
+      html += ukurCell('S', sTotal, 'A');
+      html += ukurCell('T', tTotal, 'A');
+      html += ukurCell('N', nTotal, 'A');
+      html += '</div>';
+
+      html += '<div class="ukur-section-title">⚡ Tegangan Fasa–Netral (V)</div>';
+      html += '<div class="ukur-grid">';
+      html += ukurCell('R–N', rN, 'V');
+      html += ukurCell('S–N', sN, 'V');
+      html += ukurCell('T–N', tN, 'V');
+      html += '</div>';
+
+      html += '<div class="ukur-section-title">⚡ Tegangan Antar Fasa (V)</div>';
+      html += '<div class="ukur-grid">';
+      html += ukurCell('R–S', rs, 'V');
+      html += ukurCell('S–T', st, 'V');
+      html += ukurCell('R–T', rt, 'V');
+      html += '</div>';
+
+      // ── THD dengan label IEEE 519 ──────────────────────────
+      // IEEE 519-2022: Batas THD arus trafo distribusi: 5% (beban penuh), 15% (beban ringan)
+      // IEEE 519 untuk tegangan <1kV: THD tegangan max 8%
+      var thds = [
+        { lbl:'THD-R', val:thdR },
+        { lbl:'THD-S', val:thdS },
+        { lbl:'THD-T', val:thdT }
+      ];
+      var hasTHD = thds.some(function(x){ return x.val && parseFloat(x.val) > 0; });
+      var thdMax = hasTHD ? Math.max.apply(null, thds.map(function(x){ return isNaN(parseFloat(x.val))?0:parseFloat(x.val); })) : 0;
+      var thdAlertHtml = '';
+      if (hasTHD && thdMax > 0) {
+        var thdStatus, thdColor, thdNote;
+        if (thdMax > 15) {
+          thdStatus='KRITIS'; thdColor='#C0392B';
+          thdNote='THD &gt;15% melebihi batas IEEE 519-2022 bahkan untuk kondisi beban ringan. Distorsi harmonik sangat tinggi — dapat menyebabkan panas berlebih pada trafo, kerusakan kapasitor, gangguan proteksi, dan interferensi alat ukur. <b>Lakukan audit harmonik segera.</b>';
+        } else if (thdMax > 8) {
+          thdStatus='PERINGATAN'; thdColor='#D97706';
+          thdNote='THD &gt;8% melampaui batas tegangan IEEE 519-2022 untuk sistem &lt;1 kV. Beban non-linier (VFD, UPS, lampu LED massal) kemungkinan menjadi sumber. Pertimbangkan pemasangan filter harmonik atau reaktor line.';
+        } else if (thdMax > 5) {
+          thdStatus='PERHATIAN'; thdColor='#B45309';
+          thdNote='THD &gt;5% mendekati batas IEEE 519-2022 untuk kondisi beban penuh. Pantau perkembangan dan identifikasi beban non-linier di jurusan ini.';
+        } else {
+          thdStatus='BAIK'; thdColor='#059669';
+          thdNote='THD dalam batas normal IEEE 519-2022 (&lt;5% untuk beban penuh, &lt;8% tegangan sistem).';
+        }
+        thdAlertHtml = '<div style="margin:4px 0 8px;padding:6px 10px;background:'+(thdMax>15?'#FFF0F0':thdMax>8?'#FFFBE6':thdMax>5?'#FFFBEB':'#F0FFF4')+';border:1px solid '+(thdMax>15?'#FFCCC7':thdMax>8?'#FFE58F':thdMax>5?'#FDE68A':'#BBF7D0')+';border-radius:6px;font-size:var(--fs-xs);">'+
+          '<div style="font-weight:700;color:'+thdColor+';margin-bottom:3px;">〰️ IEEE 519-2022: THD '+thdStatus+' (maks '+thdMax.toFixed(1)+'%)</div>'+
+          '<div style="color:var(--pln-text2);line-height:1.5;">'+thdNote+'</div>'+
+          '</div>';
+      }
+      html += '<div class="ukur-section-title">〰️ THD — Harmonik (IEEE 519-2022)</div>';
+      html += '<div class="ukur-grid">';
+      thds.forEach(function(x){
+        html += ukurCellTHD(x.lbl, x.val);
+      });
+      html += '</div>';
+      if (thdAlertHtml) html += thdAlertHtml;
+
+      html += '<div class="ukur-section-title">⚡ I-Peak (A)</div>';
+      html += '<div class="ukur-grid">';
+      html += ukurCell('IPeak-R', ipeakR, 'A');
+      html += ukurCell('IPeak-S', ipeakS, 'A');
+      html += ukurCell('IPeak-T', ipeakT, 'A');
+      html += '</div>';
+
+      html += '<div class="ukur-section-title">🔋 True Power Factor</div>';
+      html += '<div class="ukur-grid">';
+      html += ukurCell('TPF-R', tpfR, '');
+      html += ukurCell('TPF-S', tpfS, '');
+      html += ukurCell('TPF-T', tpfT, '');
+      html += '</div>';
+
+      var jurDef = [
+        { n:1, jur:'JURUSAN 1', titik:'TITIK UKUR JUR 1', r:'JUR1_R TOTAL', s:'JUR1_S TOTAL', t:'JUR1_T TOTAL', nt:'JUR1_N TOTAL', rn:'JUR1_R - N', sn:'JUR1_S - N', tn:'JUR1_T - N', thdR:'JUR1_THD-R', thdS:'JUR1_THD-S', thdT:'JUR1_THD-T', iR:'JUR1_IPEAK-R', iS:'JUR1_IPEAK-S', iT:'JUR1_IPEAK-T', tR:'JUR1_TPF-R', tS:'JUR1_TPF-S', tT:'JUR1_TPF-T' },
+        { n:2, jur:'JURUSAN 2', titik:'TITIK UKUR JUR 2', r:'JUR2_R TOTAL', s:'JUR2_S TOTAL', t:'JUR2_T TOTAL', nt:'JUR2_N TOTAL', rn:'JUR2_R - s', sn:'JUR2_R - T', tn:'JUR2_S - T', thdR:'JUR2_THD-R', thdS:'JUR2_THD-S', thdT:'JUR2_THD-T', iR:'JUR2_IPEAK-R', iS:'JUR2_IPEAK-S', iT:'JUR2_IPEAK-T', tR:'JUR2_TPF-R', tS:'JUR2_TPF-S', tT:'JUR2_TPF-T' },
+        { n:3, jur:'JURUSAN 3', titik:'TITIK UKUR JUR 3', r:'JUR3_R TOTAL', s:'JUR3_S TOTAL', t:'JUR3_T TOTAL', nt:'JUR3_N TOTAL', rn:'JUR3_R - N', sn:'JUR3_S - N', tn:'JUR3_T - N', thdR:'JUR3_THD-R', thdS:'JUR3_THD-S', thdT:'JUR3_THD-T', iR:'JUR3_IPEAK-R', iS:'JUR3_IPEAK-S', iT:'JUR3_IPEAK-T', tR:'JUR3_TPF-R', tS:'JUR3_TPF-S', tT:'JUR3_TPF-T' },
+        { n:4, jur:'JURUSAN 4', titik:'TITIK UKUR JUR 4', r:'JUR4_R TOTAL', s:'JUR4_S TOTAL', t:'JUR4_T TOTAL', nt:'JUR4_N TOTAL', rn:'JUR4_R - N', sn:'JUR4_S - N', tn:'JUR4_T - N', thdR:'JUR4_THD-R', thdS:'JUR4_THD-S', thdT:'JUR4_THD-T', iR:'JUR4_IPEAK-R', iS:'JUR4_IPEAK-S', iT:'JUR4_IPEAK-T', tR:'JUR4_TPF-R', tS:'JUR4_TPF-S', tT:'JUR4_TPF-T' },
+        { n:5, jur:'JURUSAN 5', titik:'TITIK UKUR JUR 5', r:'JUR5_R TOTAL', s:'JUR5_S TOTAL', t:'JUR5_T TOTAL', nt:'JUR5_N TOTAL', rn:'JUR5_R - N', sn:'JUR5_S - N', tn:'JUR5_T - N', thdR:'JUR5_THD-R', thdS:'JUR5_THD-S', thdT:'JUR5_THD-T', iR:'JUR5_IPEAK-R', iS:'JUR5_IPEAK-S', iT:'JUR5_IPEAK-T', tR:'JUR5_TPF-R', tS:'JUR5_TPF-S', tT:'JUR5_TPF-T' },
+        { n:6, jur:'JURUSAN 6', titik:'TITIK UKUR JUR 6', r:'JUR6_R TOTAL', s:'JUR6_S TOTAL', t:'JUR6_T TOTAL', nt:'JUR6_N TOTAL', rn:'JUR6_R - N', sn:'JUR6_S - N', tn:'JUR6_T - N', thdR:'JUR6_THD-R', thdS:'JUR6_THD-S', thdT:'JUR6_THD-T', iR:'JUR6_IPEAK-R', iS:'JUR6_IPEAK-S', iT:'JUR6_IPEAK-T', tR:'JUR6_TPF-R', tS:'JUR6_TPF-S', tT:'JUR6_TPF-T' }
+      ];
+      jurDef.forEach(function(j) {
+        var jNama = r[j.jur];
+        var jR    = r[j.r];
+        var jTitik = r[j.titik];
+        if (!jNama && (!jR || parseFloat(jR) === 0)) return;
+        html += '<div class="ukur-section-title" style="background:var(--pln-biru2);color:#fff;border-radius:6px;padding:5px 10px;margin-top:10px;">🔌 Jurusan '+j.n+(jNama && String(jNama).trim() ? ' — '+esc(String(jNama)) : '')+(jTitik && String(jTitik).trim() && String(jTitik)!=="0" ? ' &nbsp;<span style=\"font-size:0.85em;opacity:0.85\">📍 '+esc(String(jTitik))+'</span>' : '')+'</div>';
+        html += '<div class="ukur-section-title" style="font-size:var(--fs-xs);margin-top:4px;">⚡ Arus (A)</div>';
+        html += '<div class="ukur-grid">';
+        html += ukurCell('R', jR||'—', 'A');
+        html += ukurCell('S', r[j.s]||'—', 'A');
+        html += ukurCell('T', r[j.t]||'—', 'A');
+        html += ukurCell('N', r[j.nt]||'—', 'A');
+        html += '</div>';
+        var jRN = r[j.rn]; var jSN = r[j.sn]; var jTN = r[j.tn];
+        if (jRN || jSN || jTN) {
+          html += '<div class="ukur-section-title" style="font-size:var(--fs-xs);margin-top:4px;">⚡ Tegangan (V)</div>';
+          html += '<div class="ukur-grid">';
+          html += ukurCell('R–N', jRN||'—', 'V');
+          html += ukurCell('S–N', jSN||'—', 'V');
+          html += ukurCell('T–N', jTN||'—', 'V');
+          html += '</div>';
+        }
+        var jtR = r[j.thdR]; var jtS = r[j.thdS]; var jtT = r[j.thdT];
+        if ((jtR && parseFloat(jtR)!==0) || (jtS && parseFloat(jtS)!==0)) {
+          html += '<div class="ukur-section-title" style="font-size:var(--fs-xs);margin-top:4px;">〰️ THD (%)</div>';
+          html += '<div class="ukur-grid">';
+          html += ukurCell('THD-R', jtR||'—', '%');
+          html += ukurCell('THD-S', jtS||'—', '%');
+          html += ukurCell('THD-T', jtT||'—', '%');
+          html += '</div>';
+        }
+        var jiR = r[j.iR]; var jiS = r[j.iS]; var jiT = r[j.iT];
+        if ((jiR && parseFloat(jiR)!==0) || (jiS && parseFloat(jiS)!==0)) {
+          html += '<div class="ukur-section-title" style="font-size:var(--fs-xs);margin-top:4px;">⚡ I-Peak (A)</div>';
+          html += '<div class="ukur-grid">';
+          html += ukurCell('IPeak-R', jiR||'—', 'A');
+          html += ukurCell('IPeak-S', jiS||'—', 'A');
+          html += ukurCell('IPeak-T', jiT||'—', 'A');
+          html += '</div>';
+        }
+        var jtpR = r[j.tR]; var jtpS = r[j.tS]; var jtpT = r[j.tT];
+        if ((jtpR && parseFloat(jtpR)!==0) || (jtpS && parseFloat(jtpS)!==0)) {
+          html += '<div class="ukur-section-title" style="font-size:var(--fs-xs);margin-top:4px;">🔋 TPF</div>';
+          html += '<div class="ukur-grid">';
+          html += ukurCell('TPF-R', jtpR||'—', '');
+          html += ukurCell('TPF-S', jtpS||'—', '');
+          html += ukurCell('TPF-T', jtpT||'—', '');
+          html += '</div>';
+        }
+      });
+
       html += '</div>'; // riwayat-body
       html += '</div>'; // collapse div
       html += '<div class="riwayat-collapse-btn" onclick="event.stopPropagation();toggleRiwayat(\''+collapseId+'\',this)">';
       html += '<span>▼ Lihat Detail Pengukuran</span>';
       html += '</div>';
-      html += '</div>';
+      html += '</div>'; // riwayat-card
     });
 
     html += '<div style="margin-top:var(--sp-sm);">';
@@ -1851,8 +2347,246 @@ function renderDetailGardu(g, riwayat){
     html += '</div>';
   }
 
+  // ── Tren Beban Section (will be populated asynchronously) ──
+  html += '<div class="sec">📈 Tren Beban Historis</div>';
+  html += '<div class="tren-filter-bar" id="tren-filter-bar">';
+  html += '<span style="font-size:var(--fs-xs);color:var(--pln-text3);font-weight:600;">Tampilkan:</span>';
+  html += '<button class="tren-filter-btn active" onclick="setTrenFilter(5,this)">5 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(10,this)">10 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(20,this)">20 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(0,this)">Semua</button>';
+  html += '</div>';
+  html += '<div class="tren-chart-wrap" id="tren-beban-wrap">';
+  html += '<div class="loading" style="padding:var(--sp-md);"><div class="spinner"></div>Memuat tren beban...</div>';
+  html += '</div>';
+
   html += '<div style="height:var(--sp-lg);"></div>';
   document.getElementById('detail-content').innerHTML = html;
+  document.getElementById('detail-view-title').textContent = g['NO_GARDU'] || '—';
+
+  // Reset filter tren beban ke default (5 data) saat buka gardu baru
+  _trenLimit = 5;
+  _trenAllData = [];
+  // Load tren beban async after DOM ready
+  muatTrenBeban(g['NO_GARDU']);
+}
+
+function ukurCell(label, val, unit) {
+  var raw = val !== null && val !== undefined ? String(val).trim() : '';
+  var isEmpty  = raw === '' || raw === '—' || raw === 'undefined' || raw === 'null';
+  var isZero   = !isEmpty && (raw === '0' || raw === '0.0' || raw === '0.00' || parseFloat(raw) === 0);
+  var display  = isEmpty ? '—' : raw;
+  var valStyle = isEmpty
+    ? 'color:var(--pln-text3);font-style:italic;font-size:var(--fs-xs);'
+    : isZero
+      ? 'color:#94A3B8;'
+      : 'color:var(--pln-biru2);';
+  return '<div class="ukur-cell">'+
+    '<div class="ukur-cell-label">'+esc(label)+'</div>'+
+    '<div class="ukur-cell-val" style="'+valStyle+'">'+esc(display)+'</div>'+
+    (!isEmpty && unit ? '<div class="ukur-cell-unit">'+esc(unit)+'</div>' : '')+
+  '</div>';
+}
+
+
+// ── [F2] Tren Beban Chart ─────────────────────────────────────
+function muatTrenBeban(noGardu) {
+  var wrap = document.getElementById('tren-beban-wrap');
+  if (!wrap) return;
+  apiGet({ action:'getTrenBeban', noGardu: noGardu }, function(res) {
+    if (!document.getElementById('tren-beban-wrap')) return; // detail sudah ditutup
+    if (res.status !== 'ok' || !res.data || !res.data.length) {
+      wrap.innerHTML = '<div class="empty-state" style="padding:var(--sp-md);"><div class="empty-icon">📊</div>Belum ada data historis beban.</div>';
+      return;
+    }
+    renderTrenBeban(res.data, wrap);
+  });
+}
+
+var _trenAllData = [];
+var _trenLimit = 5;
+
+function setTrenFilter(limit, btn) {
+  _trenLimit = limit;
+  document.querySelectorAll('.tren-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var wrap = document.getElementById('tren-beban-wrap');
+  if (wrap && _trenAllData.length) renderTrenBeban(_trenAllData, wrap);
+}
+
+function renderTrenBeban(data, wrap) {
+  _trenAllData = data;
+  // [FIX #9] Buat ID gradient unik per render agar tidak duplikat di DOM (Firefox bug)
+  var gradId = 'tren-grad-' + Date.now();
+  // Ambil data sesuai filter: 0 = semua, N = N terakhir
+  var pts = _trenLimit > 0 ? data.slice(-_trenLimit) : data.slice();
+  var prosenArr = pts.map(function(p){ return p.prosen; });
+  var maxP = Math.max.apply(null, prosenArr.concat([100]));
+  var minP = 0;
+  var latestP = prosenArr[prosenArr.length-1];
+
+  // Hitung trend (simple linear regression slope)
+  var n = prosenArr.length;
+  var sumX=0, sumY=0, sumXY=0, sumXX=0;
+  for(var i=0;i<n;i++){ sumX+=i; sumY+=prosenArr[i]; sumXY+=i*prosenArr[i]; sumXX+=i*i; }
+  var slope = n>1 ? (n*sumXY - sumX*sumY)/(n*sumXX - sumX*sumX) : 0;
+  var trendLabel = Math.abs(slope)<0.3 ? 'Stabil' : slope>0 ? '↑ Naik '+slope.toFixed(1)+'%/ukur' : '↓ Turun '+Math.abs(slope).toFixed(1)+'%/ukur';
+  var trendColor = slope > 1 ? '#C0392B' : slope > 0.3 ? '#D97706' : slope < -0.3 ? '#059669' : '#1048A8';
+  var badgeClass = latestP > 80 ? 'background:#FDECEA;color:#C0392B' : latestP > 60 ? 'background:#FEF3C7;color:#D97706' : 'background:#D1FAE5;color:#059669';
+
+  // SVG chart dimensions
+  var W=320, H=110, PL=32, PR=10, PT=12, PB=28;
+  var cW=W-PL-PR, cH=H-PT-PB;
+  var yScale=function(v){ return PT + cH - (v-minP)/(maxP-minP||1)*cH; };
+  var xScale=function(i){ return PL + (n<=1?cW/2:i/(n-1)*cW); };
+
+  // Build polyline path
+  var linePts = pts.map(function(p,i){ return xScale(i).toFixed(1)+','+yScale(p.prosen).toFixed(1); }).join(' ');
+  var areaPath = 'M'+xScale(0).toFixed(1)+','+(PT+cH)+
+    ' L'+pts.map(function(p,i){ return xScale(i).toFixed(1)+','+yScale(p.prosen).toFixed(1); }).join(' L')+
+    ' L'+xScale(n-1).toFixed(1)+','+(PT+cH)+' Z';
+
+  // Threshold lines
+  var y80 = yScale(80).toFixed(1);
+  var y60 = yScale(60).toFixed(1);
+
+  // X-axis labels (show up to 6 evenly spaced)
+  var xLabels = '';
+  var labelIdxs = [];
+  if (n<=6) { for(var i=0;i<n;i++) labelIdxs.push(i); }
+  else { var step=Math.floor(n/5); for(var i=0;i<n;i+=step) labelIdxs.push(i); if(labelIdxs[labelIdxs.length-1]!==n-1) labelIdxs.push(n-1); }
+  labelIdxs.forEach(function(i){
+    var tgl = pts[i].tgl||''; var short = tgl.length>=10?tgl.slice(5):tgl; // MM-DD
+    xLabels += '<text x="'+xScale(i).toFixed(1)+'" y="'+(H-4)+'" text-anchor="middle" font-size="7" fill="#8499BB">'+esc(short)+'</text>';
+  });
+
+  // Y-axis labels
+  var yLabels = '';
+  [0,20,40,60,80,100].forEach(function(v){
+    if(v>maxP+5) return;
+    yLabels += '<text x="'+(PL-4)+'" y="'+(yScale(v)+3)+'" text-anchor="end" font-size="7" fill="#8499BB">'+v+'</text>';
+    yLabels += '<line x1="'+PL+'" y1="'+yScale(v)+'" x2="'+(W-PR)+'" y2="'+yScale(v)+'" stroke="#E2E8F2" stroke-width="0.5"/>';
+  });
+
+  // Dots for each data point
+  var dots = pts.map(function(p,i){
+    var dotColor = p.prosen>80?'#C0392B':p.prosen>60?'#D97706':'#1048A8';
+    return '<circle cx="'+xScale(i).toFixed(1)+'" cy="'+yScale(p.prosen).toFixed(1)+'" r="3" fill="'+dotColor+'" stroke="#fff" stroke-width="1.5"><title>'+p.tgl+': '+p.prosen.toFixed(1)+'%</title></circle>';
+  }).join('');
+
+  // Last value label
+  var lastX = xScale(n-1).toFixed(1);
+  var lastY = yScale(latestP).toFixed(1);
+  var lastColor = latestP>80?'#C0392B':latestP>60?'#D97706':'#059669';
+
+  // Garis threshold IEC 60076-7 & PLN SPLN D3.002-1
+  var y100 = yScale(100).toFixed(1);
+  var y120 = yScale(120).toFixed(1);
+
+  var svgStr =
+    '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:'+W+'px;overflow:visible;">'+
+      // Gradient — pakai ID unik (gradId) untuk hindari duplikat di DOM
+      '<defs>'+
+        '<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'+
+          '<stop offset="0%" stop-color="#1048A8" stop-opacity="0.18"/>'+
+          '<stop offset="100%" stop-color="#1048A8" stop-opacity="0"/>'+
+        '</linearGradient>'+
+      '</defs>'+
+      // Zona >80% PLN (background merah tipis)
+      (y80 >= PT ? '<rect x="'+PL+'" y="'+PT+'" width="'+cW+'" height="'+Math.max(0,y80-PT)+'" fill="rgba(192,57,43,.05)"/>' : '')+
+      // 60% — batas perhatian PLN
+      '<line x1="'+PL+'" y1="'+y60+'" x2="'+(W-PR)+'" y2="'+y60+'" stroke="#FDE68A" stroke-width="1" stroke-dasharray="3,3"/>'+
+      '<text x="'+(PL+2)+'" y="'+(parseFloat(y60)-2)+'" font-size="7" fill="#D97706">60%</text>'+
+      // 80% — Batas lebih beban PLN SPLN D3.002-1
+      '<line x1="'+PL+'" y1="'+y80+'" x2="'+(W-PR)+'" y2="'+y80+'" stroke="#C0392B" stroke-width="1.5" stroke-dasharray="4,2"/>' +
+      '<text x="'+(PL+2)+'" y="'+(parseFloat(y80)-2)+'" font-size="7" fill="#C0392B">80% (PLN)</text>'+
+      // 100% — IEC 60076-7 batas nominal / kapasitas penuh
+      (maxP >= 95 ? '<line x1="'+PL+'" y1="'+y100+'" x2="'+(W-PR)+'" y2="'+y100+'" stroke="#7F1D1D" stroke-width="1.5" stroke-dasharray="2,3"/>' : '')+
+      (maxP >= 95 ? '<text x="'+(PL+2)+'" y="'+(parseFloat(y100)-2)+'" font-size="7" fill="#7F1D1D" font-weight="bold">100% (IEC nominal)</text>' : '')+
+      // 120% — IEC 60076-7 batas beban darurat (emergency)
+      (maxP >= 112 ? '<rect x="'+PL+'" y="'+PT+'" width="'+cW+'" height="'+Math.max(0,Math.min(parseFloat(y120),PT+cH)-PT)+'" fill="rgba(127,29,29,.10)"/>' : '')+
+      (maxP >= 112 ? '<line x1="'+PL+'" y1="'+y120+'" x2="'+(W-PR)+'" y2="'+y120+'" stroke="#450A0A" stroke-width="1" stroke-dasharray="2,3"/>' : '')+
+      (maxP >= 112 ? '<text x="'+(PL+2)+'" y="'+(parseFloat(y120)-2)+'" font-size="6.5" fill="#450A0A">120% (IEC darurat)</text>' : '')+
+      // Area fill
+      '<path d="'+areaPath+'" fill="url(#'+gradId+')"/>'+
+      // Line
+      '<polyline points="'+linePts+'" fill="none" stroke="#1048A8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+
+      // Grid & axis labels
+      yLabels + xLabels +
+      // Dots
+      dots +
+      // Latest value callout
+      '<rect x="'+(parseFloat(lastX)-18)+'" y="'+(parseFloat(lastY)-16)+'" width="36" height="13" rx="6" fill="'+lastColor+'"/>'+
+      '<text x="'+lastX+'" y="'+(parseFloat(lastY)-6)+'" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">'+latestP.toFixed(1)+'%</text>'+
+    '</svg>';
+
+  var html = '';
+  html += '<div class="tren-chart-header">';
+  var trenTitleLabel = _trenLimit > 0 ? _trenLimit+' Ukur Terakhir' : 'Semua Data ('+n+' ukur)';
+  html += '<span class="tren-chart-title">📈 Tren Beban Trafo ('+trenTitleLabel+')</span>';
+  html += '<span class="tren-chart-badge" style="'+badgeClass+'">'+latestP.toFixed(1)+'% · '+trendLabel+'</span>';
+  html += '</div>';
+  html += '<div class="tren-chart-svg-wrap">'+svgStr+'</div>';
+  html += '<div class="tren-chart-legend">';
+  html += '<div class="tren-legend-item"><div class="tren-legend-dot" style="background:#1048A8;"></div>Beban trafo</div>';
+  html += '<div class="tren-legend-item"><div class="tren-legend-dot" style="background:#C0392B;border-radius:2px;border:1px dashed #C0392B;"></div>&gt;80% PLN</div>';
+  html += '<div class="tren-legend-item"><div class="tren-legend-dot" style="background:#7F1D1D;border-radius:2px;border:1px dashed #7F1D1D;"></div>100% IEC</div>';
+  html += '<div style="margin-left:auto;font-size:var(--fs-xs);color:var(--pln-text3);">'+n+' titik ukur</div>';
+  html += '</div>';
+
+  // Slope prediction warning
+  if (slope > 1 && latestP > 60) {
+    var etaBulan = Math.round((80-latestP)/slope);
+    var etaTxt = etaBulan > 0 ? 'Estimasi mencapai 80% dalam ~'+etaBulan+' kali ukur ke depan.' : 'Sudah melebihi 80% — tindakan segera diperlukan.';
+    html += '<div style="margin:0 var(--sp-md) var(--sp-sm);padding:var(--sp-xs) var(--sp-sm);background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--radius-xs);font-size:var(--fs-xs);color:#92400E;">'+
+      '⚠️ <b>Tren naik.</b> '+etaTxt+
+      '</div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+function ukurCell2(label, val, unit) {
+  var raw = val !== null && val !== undefined ? String(val).trim() : '';
+  var isEmpty  = raw === '' || raw === '—' || raw === 'undefined' || raw === 'null';
+  var isZero   = !isEmpty && (raw === '0' || raw === '0.0' || parseFloat(raw) === 0);
+  var display  = isEmpty ? '—' : raw;
+  var valStyle = isEmpty
+    ? 'color:var(--pln-text3);font-style:italic;font-size:var(--fs-xs);'
+    : isZero
+      ? 'color:#94A3B8;'
+      : 'color:var(--pln-biru2);';
+  return '<div class="ukur-cell">'+
+    '<div class="ukur-cell-label">'+esc(label)+'</div>'+
+    '<div class="ukur-cell-val" style="'+valStyle+'">'+esc(display)+'</div>'+
+    (!isEmpty && unit ? '<div class="ukur-cell-unit">'+esc(unit)+'</div>' : '')+
+  '</div>';
+}
+
+// ukurCellTHD: seperti ukurCell tapi warnai berdasarkan batas IEEE 519-2022
+// <5%=hijau, 5-8%=kuning-gelap, 8-15%=oranye, >15%=merah
+function ukurCellTHD(label, val) {
+  var raw = val !== null && val !== undefined ? String(val).trim() : '';
+  var isEmpty = raw === '' || raw === '—' || raw === 'undefined' || raw === 'null';
+  var display = isEmpty ? '—' : raw;
+  var num = isEmpty ? NaN : parseFloat(raw);
+  var valStyle, bgStyle='';
+  if (isEmpty || isNaN(num)) {
+    valStyle = 'color:var(--pln-text3);font-style:italic;font-size:var(--fs-xs);';
+  } else if (num > 15) {
+    valStyle = 'color:#C0392B;font-weight:800;'; bgStyle='background:#FFF0F0;';
+  } else if (num > 8) {
+    valStyle = 'color:#D97706;font-weight:700;'; bgStyle='background:#FFFBE6;';
+  } else if (num > 5) {
+    valStyle = 'color:#B45309;font-weight:600;'; bgStyle='background:#FFFBEB;';
+  } else {
+    valStyle = 'color:#059669;font-weight:600;';
+  }
+  return '<div class="ukur-cell" style="'+bgStyle+'">'+
+    '<div class="ukur-cell-label">'+esc(label)+'</div>'+
+    '<div class="ukur-cell-val" style="'+valStyle+'">'+esc(display)+'</div>'+
+    (!isEmpty && !isNaN(num) ? '<div class="ukur-cell-unit">%</div>' : '')+
+  '</div>';
 }
 
 function toggleRiwayat(id, btn) {
@@ -1865,28 +2599,36 @@ function toggleRiwayat(id, btn) {
     : '<span>▲ Sembunyikan Detail</span>';
 }
 
-// ══════════════════════════════════════════════════════════════
-//  REKAP & EXPORT (DENGAN PERIODE)
-// ══════════════════════════════════════════════════════════════
-function muatRekap() {
-  var s = getSession();
-  var params = { action:'getRekap' };
-  if (s && s.role === 'adminUlp' && s.ulp) {
-    var sheetVal = ulpAkunToSheet(s.ulp);
-    if (sheetVal) params.ulp = sheetVal;
+// ── SOP LINKS CONFIG ─────────────────────────────────────────
+// Ganti URL di bawah ini dengan link Google Drive Anda
+// ══ LINK SOP — ISI URL GOOGLE DRIVE DOKUMEN SOP DI SINI ══════
+// ⚠️  WAJIB DIISI SEBELUM DEPLOY KE PRODUCTION!
+// Cara mengisi:
+// 1. Upload dokumen SOP ke Google Drive
+// 2. Klik kanan dokumen → "Bagikan" → set "Siapa pun dengan link dapat melihat"
+// 3. Salin link, tempelkan di bawah ini sebagai nilai string
+// Contoh: 'https://drive.google.com/file/d/XXXXXXXX/view?usp=sharing'
+var SOP_LINKS = {
+  'LINK_SOP_PEMELIHARAAN_GARDU': 'ISI_LINK_DRIVE_SOP_PEMELIHARAAN_DI_SINI',
+  'LINK_SOP_K3':                 'ISI_LINK_DRIVE_SOP_K3_DI_SINI'
+};
+function bukaLinkSOP(key) {
+  var url = SOP_LINKS[key];
+  if (!url || url.indexOf('ISI_LINK') === 0) {
+    // [FIX #10] Tampilkan pesan lebih informatif — bukan sekedar alert teknis
+    alert('⚠️ Dokumen SOP belum tersedia.\n\nSilakan hubungi Administrator untuk mengisi link dokumen SOP.\n(Panduan: isi variabel SOP_LINKS di index.html)');
+    return;
   }
-  apiGet(params, function(res) {
-    rekapSudahMuat = true;
-    if (res.status !== 'ok') {
-      document.getElementById('rekap-content').innerHTML =
-        '<div class="alert alert-err"><span class="alert-icon">❌</span><span class="alert-text">'+esc(res.message)+'</span></div>'; return;
-    }
-    renderRekap(res.data);
-  });
+  window.open(url, '_blank', 'noopener');
 }
 
-// ... (renderRekap, statCardBig, dll. tetap sama)
+function tutupDetail(){
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('bottom-nav').style.display = 'flex';
+  bukaTab(TAB_IDS[tabSebelumDetail], tabSebelumDetail);
+}
 
+// ── Export Modal & Format ────────────────────────────────────
 function bukaModalExport() {
   var sel = document.getElementById('export-ulp-filter');
   var ulpSet={};
@@ -1920,6 +2662,7 @@ function pilihFormat(fmt) {
   else         { cB.style.border='2px solid var(--pln-biru2)'; cB.style.background='#EBF4FF'; cA.style.border='2px solid var(--pln-border)'; cA.style.background=''; }
 }
 
+// Kembalikan object { bulan, tglDari, tglSampai, tahun, mode }
 function getPeriodeFilter() {
   var val = (document.querySelector('input[name="export-periode"]:checked') || {}).value || 'semua';
   if (val === 'bulan-ini') {
@@ -1940,40 +2683,20 @@ function getPeriodeFilter() {
   return { mode:'semua' };
 }
 
-function doExport() {
-  var fmt     = document.getElementById('export-format-selected').value || 'A';
-  var periode = getPeriodeFilter();
-  var ulpFilter = document.getElementById('export-ulp-filter').value || '';
-  document.getElementById('export-loading').style.display = 'block';
-
-  var s = getSession();
-  var exportParams = { 
-    action: 'getExportRekap',
-    mode: periode.mode,
-    bulan: periode.bulan || '',
-    tahun: periode.tahun || '',
-    tglDari: periode.tglDari || '',
-    tglSampai: periode.tglSampai || '',
-    ulp: ''
-  };
-
-  if (s && s.role !== 'superadmin' && s.ulp) {
-    var sheetVal = ulpAkunToSheet(s.ulp);
-    if (sheetVal) exportParams.ulp = sheetVal;
-  } else if (ulpFilter) {
-    exportParams.ulp = ulpFilter;
-  }
-
-  apiGet(exportParams, function(res) {
-    document.getElementById('export-loading').style.display = 'none';
-    if (res.status !== 'ok' || !res.data) { alert('Gagal memuat data: '+(res.message||'')); return; }
-
-    var rows = res.data;
-    // Lanjutkan generate Excel atau Print HTML ...
-    // (kode generateExcel / generatePrintHTML tetap sama)
-    if (fmt === 'A') generateXLSX(rows, getPeriodeLabel(periode), ulpFilter);
-    else             generatePrintHTML(rows, getPeriodeLabel(periode), ulpFilter);
-    document.getElementById('modal-export').style.display = 'none';
+// Filter rows berdasarkan periode
+function filterRowsByPeriode(rows, periode) {
+  if (periode.mode === 'semua') return rows;
+  return rows.filter(function(r) {
+    var tgl = r.tglUkur || '';
+    if (!tgl) return false;
+    if (periode.mode === 'bulan')   return tgl.slice(0,7) === periode.bulan;
+    if (periode.mode === 'tahun')   return tgl.slice(0,4) === String(periode.tahun);
+    if (periode.mode === 'rentang') {
+      if (periode.tglDari   && tgl < periode.tglDari)   return false;
+      if (periode.tglSampai && tgl > periode.tglSampai) return false;
+      return true;
+    }
+    return true;
   });
 }
 
@@ -1985,32 +2708,1286 @@ function getPeriodeLabel(periode) {
   return '';
 }
 
-// ══════════════════════════════════════════════════════════════
-//  TAMBAH / EDIT GARDU (PROMPT PIN)
-// ══════════════════════════════════════════════════════════════
+function doExport() {
+  var fmt     = document.getElementById('export-format-selected').value || 'A';
+  var periode = getPeriodeFilter();
+  var ulpFilter = document.getElementById('export-ulp-filter').value || '';
+  document.getElementById('export-loading').style.display = 'block';
+  // Kirim parameter ULP ke server untuk non-superadmin (hemat bandwidth & cegah kebocoran data)
+  var s = getSession();
+  var exportParams = { action: 'getExportRekap', bulan: '' };
+  if (s && s.role !== 'superadmin' && s.ulp) {
+    var sheetVal = ulpAkunToSheet(s.ulp);
+    if (sheetVal) exportParams.ulp = sheetVal;
+  }
+  apiGet(exportParams, function(res) {
+    document.getElementById('export-loading').style.display = 'none';
+    if (res.status !== 'ok' || !res.data) { alert('Gagal memuat data: '+(res.message||'')); return; }
+
+    // Filter periode (berdasarkan tglUkur)
+    // Untuk rekap: kita mau tampilkan SEMUA gardu, tapi data inspeksinya dibatasi periode
+    // Jadi: gardu yang belum inspeksi di periode itu tetap muncul sbg "Belum"
+    var allRows = res.data;
+    // Filter berdasarkan periode: rows yang punya tglUkur di periode, + gardu tanpa inspeksi
+    var rowsPeriode;
+    if (periode.mode === 'semua') {
+      rowsPeriode = allRows;
+    } else {
+      rowsPeriode = allRows.map(function(r) {
+        // Kalau tglUkur-nya tidak masuk periode, anggap belum inspeksi
+        var tgl = r.tglUkur || '';
+        var masuk = false;
+        if (tgl) {
+          if (periode.mode === 'bulan')   masuk = tgl.slice(0,7) === periode.bulan;
+          if (periode.mode === 'tahun')   masuk = tgl.slice(0,4) === String(periode.tahun);
+          if (periode.mode === 'rentang') {
+            masuk = (!periode.tglDari || tgl >= periode.tglDari) &&
+                    (!periode.tglSampai || tgl <= periode.tglSampai);
+          }
+        }
+        if (!masuk) {
+          // Reset data inspeksi tapi gardu tetap tampil
+          return Object.assign({}, r, {
+            tglUkur:'', jamUkur:'', petugas:'', prosen:'',
+            rTotal:'', sTotal:'', tTotal:'', nTotal:'',
+            thdR:'', thdS:'', thdT:'', hariSejak:'',
+            keterangan:'BELUM INSPEKSI'
+          });
+        }
+        return r;
+      });
+    }
+
+    // Filter ULP
+    var rows = ulpFilter
+      ? rowsPeriode.filter(function(r){ return (r.ulp||'').trim() === ulpFilter; })
+      : rowsPeriode;
+
+    var periodeLabel = getPeriodeLabel(periode);
+    if (fmt === 'A') generateXLSX(rows, periodeLabel, ulpFilter);
+    else             generatePrintHTML(rows, periodeLabel, ulpFilter);
+    document.getElementById('modal-export').style.display = 'none';
+  });
+}
+
+// ─── Helper: encode cell address ─────────────────────────────
+// ─── Helper styles (ExcelJS) ──────────────────────────────────
+function xlsStyle(opts) {
+  // opts: { bold, sz, color, bg, align, wrapText, border, italic }
+  var s = {};
+  if (opts.bold || opts.sz || opts.color || opts.italic) {
+    s.font = {};
+    if (opts.bold)   s.font.bold   = true;
+    if (opts.italic) s.font.italic = true;
+    if (opts.sz)     s.font.size   = opts.sz;
+    if (opts.color)  s.font.color  = { argb: opts.color };
+    s.font.name = 'Calibri';
+  }
+  if (opts.bg) {
+    s.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: opts.bg } };
+  }
+  if (opts.align || opts.wrapText) {
+    s.alignment = {};
+    if (opts.align)    s.alignment.horizontal = opts.align;
+    if (opts.wrapText) s.alignment.wrapText   = true;
+    s.alignment.vertical = 'middle';
+  }
+  if (opts.border) {
+    var b = { style:'thin', color:{ argb:'FFBDBDBD' } };
+    var bt = { style:'medium', color:{ argb:'FF003B7B' } };
+    s.border = {
+      top:    opts.border==='header' ? bt : b,
+      bottom: opts.border==='header' ? bt : b,
+      left:   b, right: b
+    };
+  }
+  return s;
+}
+
+function applyRowStyle(row, style) {
+  row.eachCell({ includeEmpty: true }, function(cell) {
+    Object.assign(cell, { style: style });
+  });
+}
+
+function generateXLSX(rows, periodeLabel, ulpFilter) {
+  if (typeof ExcelJS === 'undefined') {
+    alert('ExcelJS belum dimuat, coba refresh halaman.'); return;
+  }
+
+  var tglCetak   = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  var ulpLabel   = ulpFilter || 'Semua ULP';
+  var total      = rows.length;
+  var sudah      = rows.filter(function(r){return r.tglUkur;}).length;
+  var belum      = total - sudah;
+  var overdue    = rows.filter(function(r){return r.keterangan==='OVERDUE'||!r.tglUkur;}).length;
+  var bebanLebih = rows.filter(function(r){return parseFloat(r.prosen)>80;}).length;
+  var pctSelesai = total>0 ? (sudah/total*100).toFixed(1) : '0';
+
+  var ulpMap = {};
+  rows.forEach(function(r){
+    var u = r.ulp||'Tidak Diketahui';
+    if(!ulpMap[u]) ulpMap[u]={total:0,sudah:0,overdue:0,bebanLebih:0};
+    ulpMap[u].total++;
+    if(r.tglUkur) ulpMap[u].sudah++;
+    if(r.keterangan==='OVERDUE'||!r.tglUkur) ulpMap[u].overdue++;
+    if(parseFloat(r.prosen)>80) ulpMap[u].bebanLebih++;
+  });
+  var ulpKeys = Object.keys(ulpMap).sort();
+
+  // ─── Colour palette ───────────────────────────────────────
+  var C = {
+    plnBlue:   'FF003B7B',
+    plnGold:   'FFF5A300',
+    plnGreen:  'FF1B5E20',
+    green:     'FF2E7D32',
+    greenBg:   'FFE8F5E9',
+    redDark:   'FFB71C1C',
+    red:       'FFC62828',
+    redBg:     'FFFDECEA',
+    orangeBg:  'FFFFF3E0',
+    orange:    'FFE65100',
+    blueBg:    'FFE3F2FD',
+    headerBg:  'FF003B7B',
+    headerTxt: 'FFFFFFFF',
+    subHdrBg:  'FFE3F2FD',
+    subHdrTxt: 'FF003B7B',
+    altRow:    'FFF5F9FF',
+    white:     'FFFFFFFF',
+    grayTxt:   'FF757575',
+    border:    'FFBDBDBD',
+    darkBorder:'FF003B7B',
+  };
+
+  var wb = new ExcelJS.Workbook();
+  wb.creator = 'PLN UP3 Jayapura';
+  wb.created = new Date();
+
+  // ═══════════════════════════════════════════════════════════
+  //  HELPER: merge + style sebuah range
+  // ═══════════════════════════════════════════════════════════
+  function mergeStyle(ws, r1, c1, r2, c2, value, style) {
+    ws.mergeCells(r1, c1, r2, c2);
+    var cell = ws.getCell(r1, c1);
+    cell.value = value;
+    cell.style = style;
+  }
+
+  function setBorder(cell, thin) {
+    var s = thin
+      ? { style:'thin', color:{argb: C.border} }
+      : { style:'medium', color:{argb: C.darkBorder} };
+    cell.border = { top:s, bottom:s, left:s, right:s };
+  }
+
+  function styleHeaderRow(row, cols, bgColor, fgColor, sz) {
+    cols.forEach(function(c){
+      var cell = row.getCell(c);
+      cell.style = {
+        font:      { bold:true, size:sz||10, color:{argb:fgColor||C.headerTxt}, name:'Calibri' },
+        fill:      { type:'pattern', pattern:'solid', fgColor:{argb:bgColor||C.headerBg} },
+        alignment: { horizontal:'center', vertical:'middle', wrapText:true },
+        border: {
+          top:    { style:'medium', color:{argb:C.darkBorder} },
+          bottom: { style:'medium', color:{argb:C.darkBorder} },
+          left:   { style:'thin',   color:{argb:C.border} },
+          right:  { style:'thin',   color:{argb:C.border} }
+        }
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  SHEET 1 — RINGKASAN EKSEKUTIF
+  // ═══════════════════════════════════════════════════════════
+  var ws1 = wb.addWorksheet('Ringkasan', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0 },
+    properties: { tabColor: { argb: C.plnBlue } }
+  });
+  ws1.columns = [
+    {width:6},{width:30},{width:16},{width:16},{width:16},{width:16},{width:16},{width:14}
+  ];
+
+  // ── KOP SURAT ───────────────────────────────────────────
+  ws1.mergeCells('A1:H1');
+  var kopCell = ws1.getCell('A1');
+  kopCell.value = 'PT. PLN (PERSERO)  ·  UNIT PELAKSANA PELAYANAN PELANGGAN (UP3) JAYAPURA';
+  kopCell.style = {
+    font:      { bold:true, size:14, color:{argb:C.white}, name:'Calibri' },
+    fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.plnBlue} },
+    alignment: { horizontal:'center', vertical:'middle' }
+  };
+  ws1.getRow(1).height = 28;
+
+  ws1.mergeCells('A2:H2');
+  var subKop = ws1.getCell('A2');
+  subKop.value = 'LAPORAN REKAP INSPEKSI GARDU DISTRIBUSI';
+  subKop.style = {
+    font:      { bold:true, size:12, color:{argb:C.plnBlue}, name:'Calibri' },
+    fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.plnGold} },
+    alignment: { horizontal:'center', vertical:'middle' }
+  };
+  ws1.getRow(2).height = 22;
+
+  // ── INFO PERIODE ────────────────────────────────────────
+  ws1.getRow(3).height = 5; // spacer
+  var r4 = ws1.getRow(4);
+  r4.height = 18;
+  ws1.mergeCells('A4:C4'); var c4a = ws1.getCell('A4');
+  c4a.value = 'Periode: ' + periodeLabel;
+  c4a.style = { font:{bold:true,size:10,name:'Calibri'}, alignment:{vertical:'middle'} };
+  ws1.mergeCells('D4:E4'); var c4b = ws1.getCell('D4');
+  c4b.value = 'ULP: ' + ulpLabel;
+  c4b.style = { font:{bold:true,size:10,name:'Calibri'}, alignment:{vertical:'middle'} };
+  ws1.mergeCells('F4:H4'); var c4c = ws1.getCell('F4');
+  c4c.value = 'Tanggal Cetak: ' + tglCetak;
+  c4c.style = { font:{size:10,name:'Calibri',color:{argb:C.grayTxt}}, alignment:{vertical:'middle',horizontal:'right'} };
+
+  ws1.getRow(5).height = 8; // spacer
+
+  // ── STATISTIK RINGKASAN ─────────────────────────────────
+  ws1.mergeCells('A6:H6');
+  var sHdr = ws1.getCell('A6');
+  sHdr.value = 'STATISTIK RINGKASAN';
+  sHdr.style = {
+    font:      { bold:true, size:11, color:{argb:C.plnBlue}, name:'Calibri' },
+    fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.subHdrBg} },
+    alignment: { horizontal:'left', vertical:'middle' },
+    border:    { left:{ style:'thick', color:{argb:C.plnGold} } }
+  };
+  ws1.getRow(6).height = 20;
+
+  // Header statistik
+  var statHdrs = ['Total Gardu','Sudah Inspeksi','Belum Inspeksi','Overdue (>90 hr)','Beban Lebih (>80%)','% Selesai'];
+  var r7 = ws1.getRow(7);
+  r7.height = 32;
+  [2,3,4,5,6,7].forEach(function(c,i){
+    ws1.mergeCells(7,c,7,c); // single cell
+    var cell = r7.getCell(c);
+    cell.value = statHdrs[i];
+    cell.style = {
+      font:      { bold:true, size:9, color:{argb:C.white}, name:'Calibri' },
+      fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.plnBlue} },
+      alignment: { horizontal:'center', vertical:'middle', wrapText:true },
+      border:    { top:{style:'medium',color:{argb:C.plnBlue}}, bottom:{style:'medium',color:{argb:C.plnBlue}}, left:{style:'thin',color:{argb:C.white}}, right:{style:'thin',color:{argb:C.white}} }
+    };
+  });
+
+  // Nilai statistik
+  var statVals = [total, sudah, belum, overdue, bebanLebih, pctSelesai+'%'];
+  var statBgs  = [C.blueBg, C.greenBg, 'FFFFF8E1', C.redBg, C.orangeBg, C.greenBg];
+  var statTxts = [C.plnBlue, C.green, 'FF795548', C.red, C.orange, C.green];
+  var r8 = ws1.getRow(8);
+  r8.height = 36;
+  [2,3,4,5,6,7].forEach(function(c,i){
+    var cell = r8.getCell(c);
+    cell.value = statVals[i];
+    cell.style = {
+      font:      { bold:true, size:16, color:{argb:statTxts[i]}, name:'Calibri' },
+      fill:      { type:'pattern', pattern:'solid', fgColor:{argb:statBgs[i]} },
+      alignment: { horizontal:'center', vertical:'middle' },
+      border:    { top:{style:'thin',color:{argb:C.border}}, bottom:{style:'medium',color:{argb:C.darkBorder}}, left:{style:'thin',color:{argb:C.border}}, right:{style:'thin',color:{argb:C.border}} }
+    };
+  });
+
+  ws1.getRow(9).height = 10;
+
+  // ── PROGRESS PER ULP ─────────────────────────────────────
+  ws1.mergeCells('A10:H10');
+  var ulpHdrCell = ws1.getCell('A10');
+  ulpHdrCell.value = 'PROGRESS PER ULP';
+  ulpHdrCell.style = {
+    font:      { bold:true, size:11, color:{argb:C.plnBlue}, name:'Calibri' },
+    fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.subHdrBg} },
+    alignment: { horizontal:'left', vertical:'middle' },
+    border:    { left:{ style:'thick', color:{argb:C.plnGold} } }
+  };
+  ws1.getRow(10).height = 20;
+
+  var ulpColHdrs = ['No.','Nama ULP','Total Gardu','Sudah Inspeksi','Belum Inspeksi','Overdue','Beban Lebih','% Selesai'];
+  var r11 = ws1.getRow(11);
+  r11.height = 20;
+  ulpColHdrs.forEach(function(h,i){
+    var cell = r11.getCell(i+1);
+    cell.value = h;
+    cell.style = {
+      font:      { bold:true, size:9, color:{argb:C.white}, name:'Calibri' },
+      fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.plnBlue} },
+      alignment: { horizontal:'center', vertical:'middle' },
+      border:    { top:{style:'medium',color:{argb:C.darkBorder}}, bottom:{style:'medium',color:{argb:C.darkBorder}}, left:{style:'thin',color:{argb:C.white}}, right:{style:'thin',color:{argb:C.white}} }
+    };
+  });
+
+  ulpKeys.forEach(function(u, idx){
+    var d = ulpMap[u];
+    var pct = d.total>0 ? (d.sudah/d.total*100).toFixed(1)+'%' : '0%';
+    var rowNum = 12 + idx;
+    var rRow = ws1.getRow(rowNum);
+    rRow.height = 18;
+    var isAlt = idx % 2 === 1;
+    var vals = [idx+1, u, d.total, d.sudah, d.total-d.sudah, d.overdue, d.bebanLebih, pct];
+    var isWarn = d.overdue > 0 || d.bebanLebih > 0;
+    vals.forEach(function(v,ci){
+      var cell = rRow.getCell(ci+1);
+      cell.value = v;
+      var bg = isAlt ? C.altRow : C.white;
+      cell.style = {
+        font:      { size:9, name:'Calibri', bold: ci===1 },
+        fill:      { type:'pattern', pattern:'solid', fgColor:{argb: bg} },
+        alignment: { horizontal: ci<=1 ? 'left' : 'center', vertical:'middle' },
+        border:    { top:{style:'thin',color:{argb:C.border}}, bottom:{style:'thin',color:{argb:C.border}}, left:{style:'thin',color:{argb:C.border}}, right:{style:'thin',color:{argb:C.border}} }
+      };
+      // Warnai kolom % selesai
+      if(ci===7){
+        var pctNum = parseFloat(pct);
+        cell.style.font.color = { argb: pctNum>=80 ? C.green : pctNum>=50 ? C.orange : C.red };
+        cell.style.font.bold = true;
+      }
+    });
+  });
+
+  var ttdRow = 12 + ulpKeys.length + 2;
+  ws1.getRow(ttdRow).height = 12;
+  // TTD
+  ws1.mergeCells(ttdRow+1,2,ttdRow+1,4);
+  ws1.getCell(ttdRow+1,2).value = 'Dibuat Oleh,';
+  ws1.getCell(ttdRow+1,2).style = { font:{bold:true,size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+  ws1.mergeCells(ttdRow+1,5,ttdRow+1,8);
+  ws1.getCell(ttdRow+1,5).value = 'Mengetahui / Menyetujui,';
+  ws1.getCell(ttdRow+1,5).style = { font:{bold:true,size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+  for(var ti=0;ti<4;ti++) ws1.getRow(ttdRow+2+ti).height = 15;
+  ws1.mergeCells(ttdRow+5,2,ttdRow+5,4);
+  ws1.getCell(ttdRow+5,2).value = '(...................................)';
+  ws1.getCell(ttdRow+5,2).style = { font:{size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+  ws1.mergeCells(ttdRow+5,5,ttdRow+5,8);
+  ws1.getCell(ttdRow+5,5).value = '(...................................)';
+  ws1.getCell(ttdRow+5,5).style = { font:{size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+  ws1.mergeCells(ttdRow+6,2,ttdRow+6,4);
+  ws1.getCell(ttdRow+6,2).value = 'Nama / NIP / Jabatan';
+  ws1.getCell(ttdRow+6,2).style = { font:{bold:true,size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+  ws1.mergeCells(ttdRow+6,5,ttdRow+6,8);
+  ws1.getCell(ttdRow+6,5).value = 'Nama / NIP / Jabatan';
+  ws1.getCell(ttdRow+6,5).style = { font:{bold:true,size:9,name:'Calibri'}, alignment:{horizontal:'center'} };
+
+  // ═══════════════════════════════════════════════════════════
+  //  SHEET 2 — DATA LENGKAP
+  // ═══════════════════════════════════════════════════════════
+  var ws2 = wb.addWorksheet('Data Lengkap', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0 },
+    properties: { tabColor: { argb:'FF1565C0' } },
+    views: [{ state:'frozen', ySplit:4 }]
+  });
+  ws2.columns = [
+    {width:5,key:'no'},{width:14,key:'nogardu'},{width:18,key:'ulp'},{width:16,key:'penyulang'},{width:30,key:'alamat'},
+    {width:10,key:'daya'},{width:18,key:'status'},
+    {width:14,key:'tgl'},{width:9,key:'jam'},{width:20,key:'petugas'},
+    {width:10,key:'prosen'},{width:10,key:'r'},{width:10,key:'s'},{width:10,key:'t'},{width:10,key:'n'},
+    {width:10,key:'thdR'},{width:10,key:'thdS'},{width:10,key:'thdT'},
+    {width:20,key:'hari'},{width:18,key:'ket'}
+  ];
+
+  // Baris 1-2: Header judul
+  ws2.mergeCells('A1:T1');
+  ws2.getCell('A1').value = 'PT. PLN (PERSERO) UP3 JAYAPURA — DATA LENGKAP GARDU DISTRIBUSI';
+  ws2.getCell('A1').style = { font:{bold:true,size:13,color:{argb:C.white},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.plnBlue}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws2.getRow(1).height = 26;
+
+  ws2.mergeCells('A2:T2');
+  ws2.getCell('A2').value = 'Periode: '+periodeLabel+' | ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
+  ws2.getCell('A2').style = { font:{size:9,color:{argb:C.grayTxt},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.plnGold}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws2.getRow(2).height = 16;
+
+  ws2.getRow(3).height = 6; // spacer
+
+  // Header kolom
+  var hdr2 = ['NO','NO GARDU','ULP','PENYULANG','ALAMAT','DAYA\n(kVA)','STATUS\nOPERASIONAL','TGL\nINSPEKSI','JAM\nUKUR','PETUGAS','BEBAN\n(%)','R\nTOTAL','S\nTOTAL','T\nTOTAL','N\nTOTAL','THD-R\n(%)','THD-S\n(%)','THD-T\n(%)','HARI SEJAK\nINSPEKSI','KETERANGAN'];
+  var rHdr = ws2.getRow(4);
+  rHdr.height = 36;
+  hdr2.forEach(function(h,i){
+    var cell = rHdr.getCell(i+1);
+    cell.value = h;
+    cell.style = {
+      font:      { bold:true, size:9, color:{argb:C.white}, name:'Calibri' },
+      fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.headerBg} },
+      alignment: { horizontal:'center', vertical:'middle', wrapText:true },
+      border:    { top:{style:'medium',color:{argb:C.darkBorder}}, bottom:{style:'medium',color:{argb:C.darkBorder}}, left:{style:'thin',color:{argb:'FFFFFFFF'}}, right:{style:'thin',color:{argb:'FFFFFFFF'}} }
+    };
+  });
+
+  // Data rows
+  rows.forEach(function(r, idx){
+    var rNum = 5 + idx;
+    var rRow = ws2.getRow(rNum);
+    rRow.height = 16;
+    var isAlt = idx%2===1;
+    var isKritis = r.keterangan==='OVERDUE'||r.keterangan==='BEBAN LEBIH';
+    var isBelum  = !r.tglUkur;
+
+    var baseBg = isBelum ? 'FFFFF8E1' : isKritis ? C.redBg : isAlt ? C.altRow : C.white;
+
+    var vals = [
+      idx+1, r.noGardu, r.ulp, r.penyulang, r.alamat,
+      r.daya||'', r.status||'',
+      formatTgl(r.tglUkur)||'—', r.jamUkur||'—', r.petugas||'—',
+      r.prosen!==''&&r.prosen!==null ? (parseFloat(r.prosen)||r.prosen) : '—',
+      r.rTotal||'—', r.sTotal||'—', r.tTotal||'—', r.nTotal||'—',
+      r.thdR||'—', r.thdS||'—', r.thdT||'—',
+      r.hariSejak!==''&&r.hariSejak!==null ? (parseInt(r.hariSejak)||'—') : '—',
+      r.keterangan||'—'
+    ];
+    vals.forEach(function(v,ci){
+      var cell = rRow.getCell(ci+1);
+      cell.value = v;
+      var align = (ci===0||ci>=10) ? 'center' : 'left';
+      cell.style = {
+        font:      { size:9, name:'Calibri', bold: ci===1 },
+        fill:      { type:'pattern', pattern:'solid', fgColor:{argb:baseBg} },
+        alignment: { horizontal:align, vertical:'middle' },
+        border:    { top:{style:'thin',color:{argb:C.border}}, bottom:{style:'thin',color:{argb:C.border}}, left:{style:'thin',color:{argb:C.border}}, right:{style:'thin',color:{argb:C.border}} }
+      };
+      // Kolom KETERANGAN: warnai teks
+      if(ci===19){
+        var ket = String(v);
+        cell.style.font.bold = true;
+        cell.style.font.color = { argb: ket==='BEBAN LEBIH' ? C.red : ket==='OVERDUE' ? C.orange : ket==='BELUM INSPEKSI' ? C.grayTxt : C.green };
+      }
+      // Kolom BEBAN: warnai angka
+      if(ci===10 && v!=='—'){
+        var pb = parseFloat(v);
+        if(!isNaN(pb)) cell.style.font.color = { argb: pb>80 ? C.red : pb>60 ? C.orange : C.green };
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  //  SHEET 3 — GARDU KRITIS
+  // ═══════════════════════════════════════════════════════════
+  var ws3 = wb.addWorksheet('Gardu Kritis', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1 },
+    properties: { tabColor: { argb:'FFCC0000' } },
+    views: [{ state:'frozen', ySplit:5 }]
+  });
+  ws3.columns = [
+    {width:5},{width:16},{width:18},{width:16},{width:32},{width:10},{width:22},{width:20},{width:12},{width:22}
+  ];
+
+  ws3.mergeCells('A1:J1');
+  ws3.getCell('A1').value = '🚨  PT. PLN (PERSERO) UP3 JAYAPURA — DAFTAR GARDU KRITIS';
+  ws3.getCell('A1').style = { font:{bold:true,size:13,color:{argb:C.white},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.red}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws3.getRow(1).height = 26;
+
+  ws3.mergeCells('A2:J2');
+  ws3.getCell('A2').value = 'Periode: '+periodeLabel+' | ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
+  ws3.getCell('A2').style = { font:{size:9,color:{argb:C.grayTxt},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.plnGold}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws3.getRow(2).height = 16;
+
+  ws3.mergeCells('A3:J3');
+  ws3.getCell('A3').value = '⚠️  Gardu berikut memerlukan tindak lanjut segera: Overdue >90 hari atau Beban >80%';
+  ws3.getCell('A3').style = { font:{bold:true,size:9,color:{argb:C.redDark},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.redBg}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws3.getRow(3).height = 18;
+
+  ws3.getRow(4).height = 6;
+
+  var kritisHdrs = ['NO','NO GARDU','ULP','PENYULANG','ALAMAT','DAYA\n(kVA)','TGL TERAKHIR\nINSPEKSI','HARI SEJAK\nINSPEKSI','BEBAN\n(%)','KETERANGAN / PRIORITAS'];
+  var rKritisHdr = ws3.getRow(5);
+  rKritisHdr.height = 36;
+  kritisHdrs.forEach(function(h,i){
+    var cell = rKritisHdr.getCell(i+1);
+    cell.value = h;
+    cell.style = {
+      font:      { bold:true, size:9, color:{argb:C.white}, name:'Calibri' },
+      fill:      { type:'pattern', pattern:'solid', fgColor:{argb:C.red} },
+      alignment: { horizontal:'center', vertical:'middle', wrapText:true },
+      border:    { top:{style:'medium',color:{argb:C.red}}, bottom:{style:'medium',color:{argb:C.red}}, left:{style:'thin',color:{argb:C.white}}, right:{style:'thin',color:{argb:C.white}} }
+    };
+  });
+
+  var kritis = rows.filter(function(r){
+    return parseFloat(r.prosen)>80 || !r.tglUkur || parseInt(r.hariSejak)>90;
+  }).sort(function(a,b){
+    if(!a.tglUkur && b.tglUkur) return -1;
+    if(a.tglUkur && !b.tglUkur) return 1;
+    return (parseInt(b.hariSejak)||0)-(parseInt(a.hariSejak)||0);
+  });
+
+  kritis.forEach(function(r,idx){
+    var rNum = 6+idx;
+    var rRow = ws3.getRow(rNum);
+    rRow.height = 16;
+    var isBelum = !r.tglUkur;
+    var isBeban = parseFloat(r.prosen)>80;
+    var bg = isBelum ? 'FFFFF8E1' : (idx%2===1 ? 'FFFFF5F5' : C.white);
+    var vals = [
+      idx+1, r.noGardu, r.ulp, r.penyulang, r.alamat, r.daya,
+      formatTgl(r.tglUkur)||'BELUM PERNAH',
+      r.hariSejak!==''&&r.hariSejak!==null ? (parseInt(r.hariSejak)||'N/A') : 'N/A',
+      r.prosen!==''&&r.prosen!==null ? (parseFloat(r.prosen)||'—') : '—',
+      r.keterangan
+    ];
+    vals.forEach(function(v,ci){
+      var cell = rRow.getCell(ci+1);
+      cell.value = v;
+      cell.style = {
+        font:      { size:9, name:'Calibri', bold: ci===1 || ci===9 },
+        fill:      { type:'pattern', pattern:'solid', fgColor:{argb:bg} },
+        alignment: { horizontal: ci<=1||ci===3||ci===4 ? 'left':'center', vertical:'middle' },
+        border:    { top:{style:'thin',color:{argb:C.border}}, bottom:{style:'thin',color:{argb:C.border}}, left:{style:'thin',color:{argb:C.border}}, right:{style:'thin',color:{argb:C.border}} }
+      };
+      if(ci===9){
+        cell.style.font.color = { argb: r.keterangan==='BEBAN LEBIH' ? C.red : r.keterangan==='OVERDUE' ? C.orange : C.grayTxt };
+      }
+      if(ci===7 && v!=='N/A'){ // hari sejak
+        var hs = parseInt(v);
+        if(hs>180) cell.style.font.color={ argb:C.redDark };
+        else if(hs>90) cell.style.font.color={ argb:C.red };
+      }
+    });
+  });
+
+  // Total kritis
+  var totalKritisRow = ws3.getRow(6+kritis.length+1);
+  ws3.mergeCells(6+kritis.length+1, 1, 6+kritis.length+1, 10);
+  totalKritisRow.getCell(1).value = 'Total Gardu Kritis: '+kritis.length+' dari '+total+' gardu ('+
+    (total>0?(kritis.length/total*100).toFixed(1):0)+'%)';
+  totalKritisRow.getCell(1).style = { font:{bold:true,size:10,color:{argb:C.red},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.redBg}}, alignment:{horizontal:'center',vertical:'middle'} };
+  totalKritisRow.height = 20;
+
+  // ═══════════════════════════════════════════════════════════
+  //  SHEET 4 — PER ULP
+  // ═══════════════════════════════════════════════════════════
+  var ws4 = wb.addWorksheet('Per ULP', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1 },
+    properties: { tabColor: { argb:'FF1B5E20' } }
+  });
+  ws4.columns = [
+    {width:16},{width:18},{width:32},{width:10},{width:16},{width:10},{width:16},{width:18}
+  ];
+
+  ws4.mergeCells('A1:H1');
+  ws4.getCell('A1').value = 'PT. PLN (PERSERO) UP3 JAYAPURA — REKAP DETAIL PER ULP';
+  ws4.getCell('A1').style = { font:{bold:true,size:13,color:{argb:C.white},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.plnBlue}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws4.getRow(1).height = 26;
+  ws4.mergeCells('A2:H2');
+  ws4.getCell('A2').value = 'Periode: '+periodeLabel+' | Dicetak: '+tglCetak;
+  ws4.getCell('A2').style = { font:{size:9,color:{argb:C.grayTxt},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:C.plnGold}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws4.getRow(2).height = 16;
+
+  var curRow4 = 3;
+  ulpKeys.forEach(function(u){
+    var d = ulpMap[u];
+    var pct = d.total>0 ? (d.sudah/d.total*100).toFixed(1) : '0';
+    var pctNum = parseFloat(pct);
+
+    // ULP title bar
+    ws4.getRow(curRow4).height = 8;
+    curRow4++;
+    ws4.mergeCells(curRow4,1,curRow4,8);
+    var ulpTitleCell = ws4.getCell(curRow4,1);
+    ulpTitleCell.value = '  🏢  ULP: '+u;
+    ulpTitleCell.style = {
+      font:  { bold:true, size:11, color:{argb:C.white}, name:'Calibri' },
+      fill:  { type:'pattern', pattern:'solid', fgColor:{argb:C.plnBlue} },
+      alignment: { horizontal:'left', vertical:'middle' }
+    };
+    ws4.getRow(curRow4).height = 22;
+    curRow4++;
+
+    // Summary stats row
+    var statLabels = ['Total Gardu','Sudah Inspeksi','Belum Inspeksi','Overdue','Beban Lebih','','% Selesai',''];
+    var statValues = [d.total, d.sudah, d.total-d.sudah, d.overdue, d.bebanLebih,'', pct+'%',''];
+    var rStat = ws4.getRow(curRow4);
+    rStat.height = 30;
+    statLabels.forEach(function(lbl,i){
+      var cell = rStat.getCell(i+1);
+      cell.value = lbl ? lbl+'\n'+statValues[i] : '';
+      cell.style = {
+        font:  { bold:true, size:9, name:'Calibri',
+          color: {argb: i===3&&d.overdue>0 ? C.red : i===4&&d.bebanLebih>0 ? C.orange : i===6 ? (pctNum>=80?C.green:pctNum>=50?C.orange:C.red) : C.plnBlue } },
+        fill:  { type:'pattern', pattern:'solid', fgColor:{argb:C.subHdrBg} },
+        alignment: { horizontal:'center', vertical:'middle', wrapText:true },
+        border:{ top:{style:'thin',color:{argb:C.border}},bottom:{style:'thin',color:{argb:C.border}},left:{style:'thin',color:{argb:C.border}},right:{style:'thin',color:{argb:C.border}} }
+      };
+    });
+    curRow4++;
+
+    // Detail header
+    var detHdrs = ['No Gardu','Penyulang','Alamat','Daya (kVA)','Tgl Inspeksi','Beban (%)','Hari Sejak','Status'];
+    var rDetHdr = ws4.getRow(curRow4);
+    rDetHdr.height = 18;
+    detHdrs.forEach(function(h,i){
+      var cell = rDetHdr.getCell(i+1);
+      cell.value = h;
+      cell.style = {
+        font:  { bold:true, size:9, color:{argb:C.plnBlue}, name:'Calibri' },
+        fill:  { type:'pattern', pattern:'solid', fgColor:{argb:'FFD0E4FF'} },
+        alignment: { horizontal:'center', vertical:'middle' },
+        border:{ top:{style:'thin',color:{argb:C.plnBlue}},bottom:{style:'thin',color:{argb:C.plnBlue}},left:{style:'thin',color:{argb:C.border}},right:{style:'thin',color:{argb:C.border}} }
+      };
+    });
+    curRow4++;
+
+    var garduUlp = rows.filter(function(r){ return (r.ulp||'').trim()===u; });
+    garduUlp.sort(function(a,b){return (parseInt(b.hariSejak)||0)-(parseInt(a.hariSejak)||0);});
+    garduUlp.forEach(function(r,gi){
+      var rg = ws4.getRow(curRow4);
+      rg.height = 16;
+      var isAlt = gi%2===1;
+      var isKritis2 = r.keterangan==='OVERDUE'||r.keterangan==='BEBAN LEBIH';
+      var bg4 = !r.tglUkur ? 'FFFFF8E1' : isKritis2 ? C.redBg : isAlt ? C.altRow : C.white;
+      var vals4 = [r.noGardu,r.penyulang,r.alamat,r.daya,formatTgl(r.tglUkur)||'—',r.prosen||'—',r.hariSejak!==''?r.hariSejak:'—',r.keterangan];
+      vals4.forEach(function(v,ci){
+        var cell = rg.getCell(ci+1);
+        cell.value = v;
+        cell.style = {
+          font:  { size:9, name:'Calibri', bold:ci===0,
+            color: {argb: ci===7 ? (r.keterangan==='BEBAN LEBIH'?C.red:r.keterangan==='OVERDUE'?C.orange:C.green) : 'FF000000'} },
+          fill:  { type:'pattern', pattern:'solid', fgColor:{argb:bg4} },
+          alignment: { horizontal: ci>=3?'center':'left', vertical:'middle' },
+          border:{ top:{style:'thin',color:{argb:C.border}},bottom:{style:'thin',color:{argb:C.border}},left:{style:'thin',color:{argb:C.border}},right:{style:'thin',color:{argb:C.border}} }
+        };
+      });
+      curRow4++;
+    });
+  });
+
+  // ── Generate & Download ──────────────────────────────────
+  wb.xlsx.writeBuffer().then(function(buffer){
+    var blob = new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    var safePeriode = periodeLabel.replace(/[^a-zA-Z0-9\-]/g,'_');
+    var safeULP = (ulpFilter||'SemuaULP').replace(/\s+/g,'_');
+    var tglFile = new Date().toISOString().slice(0,10);
+    a.href     = url;
+    a.download = 'LaporanGardu_'+safePeriode+'_'+safeULP+'_'+tglFile+'.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }).catch(function(err){
+    alert('Gagal generate Excel: '+err.message);
+  });
+}
+
+function generatePrintHTML(rows, periodeLabel, ulpFilter) {
+  var tglCetak = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  var ulpLabel  = ulpFilter || 'Semua ULP';
+  var total = rows.length;
+  var sudah = rows.filter(function(r){ return r.tglUkur; }).length;
+  var belum = total - sudah;
+  var overdue = rows.filter(function(r){ return !r.tglUkur || r.hariSejak > 90; }).length;
+  var bebanLebih = rows.filter(function(r){ return parseFloat(r.prosen) > 80; }).length;
+
+  // ── Progress per ULP ──
+  var ulpMap = {};
+  rows.forEach(function(r) {
+    var u = r.ulp || '-';
+    if (!ulpMap[u]) ulpMap[u] = {total:0, sudah:0, overdue:0};
+    ulpMap[u].total++;
+    if (r.tglUkur) ulpMap[u].sudah++;
+    if (!r.tglUkur || r.hariSejak > 90) ulpMap[u].overdue++;
+  });
+
+  var ulpRows = Object.keys(ulpMap).sort().map(function(u) {
+    var d = ulpMap[u];
+    var pct = d.total > 0 ? (d.sudah / d.total * 100).toFixed(1) : '0';
+    var barClr = parseFloat(pct) >= 80 ? '#43A047' : '#1A7DC4';
+    return [
+      '<tr><td>', u, '</td><td>', d.total, '</td><td>', d.sudah,
+      '</td><td>', (d.total - d.sudah), '</td><td>', d.overdue,
+      '</td><td><div style="display:flex;align-items:center;gap:6px;">',
+      '<div style="background:#e0e0e0;border-radius:4px;height:10px;flex:1;">',
+      '<div style="background:', barClr, ';height:10px;border-radius:4px;width:', pct, '%;"></div></div>',
+      '<b>', pct, '%</b></div></td></tr>'
+    ].join('');
+  }).join('');
+
+  // ── Baris data ──
+  var dataRows = rows.map(function(r) {
+    var bg = (!r.tglUkur || r.hariSejak > 90 || parseFloat(r.prosen) > 80)
+      ? '#FDECEA' : (r.hariSejak > 60 ? '#FFFDE7' : '#F1F8E9');
+    var statusClr = (r.keterangan === 'OVERDUE' || r.keterangan === 'BEBAN LEBIH') ? '#C62828' : '#2E7D32';
+    return [
+      '<tr style="background:', bg, '">',
+      '<td>', esc(r.noGardu), '</td>',
+      '<td>', esc(r.ulp), '</td>',
+      '<td>', esc(r.penyulang), '</td>',
+      '<td>', esc(r.alamat), '</td>',
+      '<td>', esc(String(r.daya || '')), '</td>',
+      '<td>', formatTgl(r.tglUkur), '</td>',
+      '<td>', esc(r.petugas || '—'), '</td>',
+      '<td style="text-align:center;">', (r.prosen || '—'), '</td>',
+      '<td style="text-align:center;">', (r.hariSejak || '—'), '</td>',
+      '<td style="font-weight:600;color:', statusClr, ';">', r.keterangan, '</td>',
+      '</tr>'
+    ].join('');
+  }).join('');
+
+  // ── Statistik boxes ──
+  var stats = [
+    {num: total,       lbl: 'Total Gardu',         clr: '#003B7B'},
+    {num: sudah,       lbl: 'Sudah Inspeksi',       clr: '#2E7D32'},
+    {num: belum,       lbl: 'Belum Inspeksi',       clr: '#555555'},
+    {num: overdue,     lbl: 'Overdue (>90 hari)',   clr: '#C62828'},
+    {num: bebanLebih,  lbl: 'Beban Lebih (>80%)',   clr: '#E65100'},
+  ];
+  var statBoxes = stats.map(function(s) {
+    return '<div class="stat-box"><div class="stat-num" style="color:' + s.clr + ';">' +
+           s.num + '</div><div class="stat-lbl">' + s.lbl + '</div></div>';
+  }).join('');
+
+  // ── Susun HTML parts ──
+  var parts = [];
+  parts.push('<!DOCTYPE html>');
+  parts.push('<html lang="id">');
+  parts.push('<head>');
+  parts.push('<meta charset="UTF-8">');
+  parts.push('<meta name="viewport" content="width=device-width,initial-scale=1">');
+  parts.push('<title>Laporan Gardu Distribusi - PT. PLN UP3 Jayapura</title>');
+  parts.push('<style>');
+  parts.push('@media print{@page{size:A4 landscape;margin:12mm;}');
+  parts.push('body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}');
+  parts.push('*{box-sizing:border-box;}');
+  parts.push('body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a1a1a;margin:0;padding:16px;background:#fff;}');
+  parts.push('.kop{display:flex;align-items:center;gap:14px;padding-bottom:10px;');
+  parts.push('  border-bottom:3px double #003B7B;margin-bottom:14px;}');
+  parts.push('.kop-logo{width:52px;height:52px;background:#F5A300;border-radius:8px;');
+  parts.push('  display:flex;align-items:center;justify-content:center;');
+  parts.push('  font-size:13px;font-weight:900;color:#003B7B;letter-spacing:-0.5px;flex-shrink:0;}');
+  parts.push('.kop-right{flex:1;}');
+  parts.push('.kop-r1{font-size:13px;font-weight:800;color:#003B7B;line-height:1.3;}');
+  parts.push('.kop-r2{font-size:11px;color:#444;line-height:1.4;}');
+  parts.push('.kop-r3{font-size:9px;color:#888;margin-top:2px;}');
+  parts.push('h2{font-size:11px;text-align:center;margin:10px 0 3px;');
+  parts.push('  text-transform:uppercase;letter-spacing:1.5px;color:#003B7B;font-weight:800;}');
+  parts.push('.sub{text-align:center;font-size:9px;color:#666;margin-bottom:14px;}');
+  parts.push('.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px;}');
+  parts.push('.stat-box{border:1px solid #ddd;border-radius:8px;padding:8px 6px;text-align:center;background:#fafafa;}');
+  parts.push('.stat-num{font-size:20px;font-weight:800;line-height:1;}');
+  parts.push('.stat-lbl{font-size:8px;color:#666;margin-top:3px;line-height:1.3;}');
+  parts.push('.sec-title{font-size:9px;font-weight:700;color:#003B7B;');
+  parts.push('  margin:12px 0 5px;padding-left:8px;border-left:3px solid #F5A300;');
+  parts.push('  text-transform:uppercase;letter-spacing:.5px;}');
+  parts.push('table{width:100%;border-collapse:collapse;font-size:8.5px;}');
+  parts.push('thead th{background:#003B7B;color:#fff;padding:5px 6px;font-size:8px;');
+  parts.push('  font-weight:700;text-align:left;white-space:nowrap;}');
+  parts.push('tbody td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:top;}');
+  parts.push('tbody tr:nth-child(even){filter:brightness(0.97);}');
+  parts.push('.bar-wrap{display:flex;align-items:center;gap:5px;}');
+  parts.push('.bar-bg{background:#e0e0e0;border-radius:3px;height:8px;flex:1;}');
+  parts.push('.bar-fill{height:8px;border-radius:3px;}');
+  parts.push('.ttd-section{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:60px;}');
+  parts.push('.ttd-box{text-align:center;font-size:9px;color:#333;}');
+  parts.push('.ttd-label{font-weight:700;margin-bottom:4px;}');
+  parts.push('.ttd-line{border-top:1px solid #333;margin-top:44px;padding-top:4px;}');
+  parts.push('.footer{margin-top:16px;display:flex;justify-content:space-between;');
+  parts.push('  font-size:8px;color:#999;border-top:1px solid #ddd;padding-top:6px;}');
+  parts.push('.legend{display:flex;gap:12px;font-size:8px;margin-bottom:5px;}');
+  parts.push('.leg-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px;}');
+  parts.push('</style>');
+  parts.push('</head>');
+  parts.push('<body>');
+
+  // Kop
+  parts.push('<div class="kop">');
+  parts.push('<div class="kop-logo">PLN</div>');
+  parts.push('<div class="kop-right">');
+  parts.push('<div class="kop-r1">PT. PLN (PERSERO)</div>');
+  parts.push('<div class="kop-r2">UNIT PELAKSANA PELAYANAN PELANGGAN (UP3) JAYAPURA</div>');
+  parts.push('<div class="kop-r3">Laporan Rekap Inspeksi Gardu Distribusi</div>');
+  parts.push('</div></div>');
+
+  // Judul
+  parts.push('<h2>Laporan Rekap Inspeksi Gardu Distribusi</h2>');
+  parts.push('<div class="sub">Periode: ' + periodeLabel + ' &nbsp;|&nbsp; ULP: ' + ulpLabel + ' &nbsp;|&nbsp; Tanggal Cetak: ' + tglCetak + '</div>');
+
+  // Statistik
+  parts.push('<div class="stat-grid">' + statBoxes + '</div>');
+
+  // Progress ULP
+  parts.push('<div class="sec-title">Progress Per ULP</div>');
+  parts.push('<table>');
+  parts.push('<thead><tr><th>ULP</th><th>Total</th><th>Sudah</th><th>Belum</th><th>Overdue</th><th style="min-width:110px;">% Selesai</th></tr></thead>');
+  parts.push('<tbody>' + ulpRows + '</tbody>');
+  parts.push('</table>');
+
+  // Legenda warna
+  parts.push('<div class="legend" style="margin-top:10px;">');
+  parts.push('<span><span class="leg-dot" style="background:#FDECEA;border:1px solid #ccc;"></span>Kritis / Overdue</span>');
+  parts.push('<span><span class="leg-dot" style="background:#FFFDE7;border:1px solid #ccc;"></span>Perlu Perhatian (60–90 hari)</span>');
+  parts.push('<span><span class="leg-dot" style="background:#F1F8E9;border:1px solid #ccc;"></span>Normal</span>');
+  parts.push('</div>');
+
+  // Data lengkap
+  parts.push('<div class="sec-title">Data Lengkap Gardu</div>');
+  parts.push('<table>');
+  parts.push('<thead><tr>');
+  parts.push('<th>NO GARDU</th><th>ULP</th><th>PENYULANG</th><th>ALAMAT</th>');
+  parts.push('<th>DAYA (kVA)</th><th>TGL UKUR</th><th>PETUGAS</th>');
+  parts.push('<th>BEBAN%</th><th>HARI SEJAK</th><th>STATUS</th>');
+  parts.push('</tr></thead>');
+  parts.push('<tbody>' + dataRows + '</tbody>');
+  parts.push('</table>');
+
+  // Tanda tangan
+  parts.push('<div class="ttd-section">');
+  parts.push('<div class="ttd-box"><div class="ttd-label">Dibuat Oleh</div><div class="ttd-line">Nama / Jabatan</div></div>');
+  parts.push('<div class="ttd-box"><div class="ttd-label">Mengetahui</div><div class="ttd-line">Nama / Jabatan</div></div>');
+  parts.push('</div>');
+
+  // Footer
+  parts.push('<div class="footer">');
+  parts.push('<span>PT. PLN (PERSERO) UP3 JAYAPURA</span>');
+  parts.push('<span>Dicetak: ' + tglCetak + '</span>');
+  parts.push('</div>');
+
+  parts.push('</body>');
+  parts.push('</html>');
+
+  var html = parts.join('\n');
+  var blob = new Blob([html], {type: 'text/html;charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var w    = window.open(url, '_blank');
+  if (w) setTimeout(function() { w.print(); }, 800);
+}
+
+
+function muatRekap() {
+  var s = getSession();
+  // [Fix Rekap] Kirim parameter ULP ke API jika login sebagai adminUlp
+  var params = { action:'getRekap' };
+  if (s && s.role === 'adminUlp' && s.ulp) {
+    var sheetVal = ulpAkunToSheet(s.ulp);
+    if (sheetVal) params.ulp = sheetVal;
+  }
+  apiGet(params, function(res) {
+    rekapSudahMuat = true;
+    if (res.status !== 'ok') {
+      document.getElementById('rekap-content').innerHTML =
+        '<div class="alert alert-err"><span class="alert-icon">❌</span><span class="alert-text">'+esc(res.message)+'</span></div>'; return;
+    }
+    renderRekap(res.data);
+  });
+}
+
+function renderRekap(d) {
+  var html = '';
+  var s = getSession();
+  var isAdminUlp = s && s.role === 'adminUlp' && s.ulp;
+
+  // [Fix Rekap] Tampilkan label ULP jika login sebagai adminUlp
+  if (isAdminUlp) {
+    html += '<div style="background:linear-gradient(90deg,var(--pln-biru),var(--pln-biru2));color:#fff;border-radius:var(--radius);padding:var(--sp-sm) var(--sp-md);margin-bottom:var(--sp-sm);font-size:var(--fs-xs);font-weight:700;">🏢 Data Rekap: '+esc(s.ulp)+'</div>';
+  }
+
+  // ── Total daya dari allGardu (sudah di-load) ──
+  var totalKva = 0;
+  allGardu.forEach(function(g){ totalKva += parseFloat(g['KAPASITAS_KVA']||0)||0; });
+  var totalKvaStr = totalKva > 0 ? (totalKva>=1000?(totalKva/1000).toFixed(1)+' MVA':totalKva.toLocaleString()+' kVA') : '—';
+
+  // ── 6 Stat Cards berwarna ──
+  var pctBelumInsp  = Math.round(d.belumInspeksi/Math.max(d.totalGardu,1)*100);
+  var pctSudahInsp  = Math.round(d.sudahInspeksi/Math.max(d.totalGardu,1)*100);
+  var pctNonAktif   = Math.round(d.nonAktif/Math.max(d.totalGardu,1)*100);
+  var pctOverdue    = Math.round(d.overdue90/Math.max(d.totalGardu,1)*100);
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-sm);margin-bottom:var(--sp-sm);">';
+  html += statCardBig(d.totalGardu+' Unit', 'Jumlah Gardu', totalKvaStr+', total daya trafo', '#0EA5E9', '📊');
+  html += statCardBig(d.overdue90+' Unit', 'Gardu Overdue 90hr', pctOverdue+'% dari total '+d.totalGardu+' unit gardu', '#EF4444', '📊');
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-sm);margin-bottom:var(--sp-sm);">';
+  html += statCardBig(d.aktif+' Unit', 'Gardu Aktif', d.nonAktif+' unit non-aktif ('+pctNonAktif+'%)', '#F59E0B', '🔌');
+  html += statCardBig(d.sudahInspeksi+' Unit', 'Sudah Inspeksi', pctSudahInsp+'% dari total '+d.totalGardu+' unit gardu', '#8B5CF6', '✅');
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-sm);margin-bottom:var(--sp-sm);">';
+  html += statCardBig(d.belumInspeksi+' Unit', 'Belum Inspeksi', pctBelumInsp+'% dari total '+d.totalGardu+' unit gardu', '#10B981', '⚠️');
+  html += statCardBig(d.bulanIni+' Kegiatan', 'Inspeksi Bulan Ini', 'Total inspeksi tercatat bulan ini', '#06B6D4', '📋');
+  html += '</div>';
+
+  // ── Pie Chart — Status Inspeksi ──
+  html += '<div class="sec">Status Inspeksi</div>';
+  html += '<div class="card">';
+  html += '<div style="display:flex;align-items:center;gap:var(--sp-md);">';
+  var sudah = d.sudahInspeksi||0, belum = d.belumInspeksi||0, total = sudah+belum||1;
+  var pctSudah = Math.round(sudah/total*100);
+  var pctBelum = 100-pctSudah;
+  // SVG Donut Chart — fungsi arc yang benar
+  var r=42, ri=25, cx=50, cy=50;
+  function svgArc(startPct, endPct, color) {
+    if (endPct - startPct <= 0) return '';
+    if (endPct - startPct >= 99.9) {
+      return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+color+'" />';
+    }
+    var startAngle = (startPct / 100 * 360 - 90) * Math.PI / 180;
+    var endAngle   = (endPct   / 100 * 360 - 90) * Math.PI / 180;
+    var x1 = cx + r * Math.cos(startAngle);
+    var y1 = cy + r * Math.sin(startAngle);
+    var x2 = cx + r * Math.cos(endAngle);
+    var y2 = cy + r * Math.sin(endAngle);
+    var large = (endPct - startPct) > 50 ? 1 : 0;
+    return '<path d="M'+x1.toFixed(3)+','+y1.toFixed(3)+
+           ' A'+r+','+r+' 0 '+large+',1 '+x2.toFixed(3)+','+y2.toFixed(3)+
+           ' L'+cx+','+cy+' Z" fill="'+color+'" />';
+  }
+  function buildDonut(segments, labelVal, labelTxt) {
+    // segments: [{pct, color}]
+    var svg = '<svg viewBox="0 0 100 100" style="width:clamp(90px,25vw,120px);flex-shrink:0;">';
+    var offset = 0;
+    segments.forEach(function(s) {
+      svg += svgArc(offset, offset + s.pct, s.color);
+      offset += s.pct;
+    });
+    svg += '<circle cx="'+cx+'" cy="'+cy+'" r="'+ri+'" fill="#fff" />';
+    svg += '<text x="50" y="47" text-anchor="middle" font-size="11" font-weight="bold" fill="#1A2B4A">'+labelVal+'</text>';
+    svg += '<text x="50" y="58" text-anchor="middle" font-size="7" fill="#8DA0B8">'+labelTxt+'</text>';
+    svg += '</svg>';
+    return svg;
+  }
+  html += buildDonut([{pct:pctSudah,color:'#10B981'},{pct:pctBelum,color:'#EF4444'}], pctSudah+'%', 'Sudah');
+  // Legend
+  html += '<div style="flex:1;">';
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+  html += '<div style="width:12px;height:12px;border-radius:3px;background:#10B981;flex-shrink:0;"></div>';
+  html += '<div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--pln-text);">'+sudah+' Gardu</div><div style="font-size:var(--fs-xs);color:var(--pln-text3);">Sudah Inspeksi</div></div>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:8px;">';
+  html += '<div style="width:12px;height:12px;border-radius:3px;background:#EF4444;flex-shrink:0;"></div>';
+  html += '<div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--pln-text);">'+belum+' Gardu</div><div style="font-size:var(--fs-xs);color:var(--pln-text3);">Belum Inspeksi</div></div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // ── Pie Chart — Status Operasional ──
+  html += '<div class="card">';
+  html += '<div style="font-size:var(--fs-xs);font-weight:700;color:var(--pln-biru2);margin-bottom:var(--sp-sm);text-transform:uppercase;letter-spacing:.5px;">Status Operasional</div>';
+  html += '<div style="display:flex;align-items:center;gap:var(--sp-md);">';
+  var aktif2 = d.aktif||0, nonAktif = d.nonAktif||0, total2 = aktif2+nonAktif||1;
+  var pctAktif = Math.round(aktif2/total2*100);
+  html += buildDonut([{pct:pctAktif,color:'#0055A5'},{pct:100-pctAktif,color:'#8DA0B8'}], pctAktif+'%', 'Aktif');
+  html += '<div style="flex:1;">';
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+  html += '<div style="width:12px;height:12px;border-radius:3px;background:#0055A5;flex-shrink:0;"></div>';
+  html += '<div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--pln-text);">'+aktif2+' Gardu</div><div style="font-size:var(--fs-xs);color:var(--pln-text3);">Aktif</div></div>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:8px;">';
+  html += '<div style="width:12px;height:12px;border-radius:3px;background:#8DA0B8;flex-shrink:0;"></div>';
+  html += '<div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--pln-text);">'+nonAktif+' Gardu</div><div style="font-size:var(--fs-xs);color:var(--pln-text3);">Non-Aktif</div></div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // ── Donut Chart — Status Beban (3 segmen) ──
+  if (d.bebanCount) {
+    html += '<div class="card">';
+    html += '<div style="font-size:var(--fs-xs);font-weight:700;color:var(--pln-biru2);margin-bottom:var(--sp-sm);text-transform:uppercase;letter-spacing:.5px;">Status Beban Trafo</div>';
+    var bNormal = d.bebanCount['Normal (<=80%)']||0;
+    var bLebih  = d.bebanCount['Lebih (>80%)']||0;
+    var bNoData = d.bebanCount['Tidak Ada Data']||0;
+    var bTotal  = bNormal+bLebih+bNoData||1;
+    var bpNormal = Math.round(bNormal/bTotal*100);
+    var bpLebih  = Math.round(bLebih/bTotal*100);
+    var bpNoData = 100 - bpNormal - bpLebih;
+    html += '<div style="display:flex;align-items:center;gap:var(--sp-md);">';
+    html += buildDonut([
+      {pct:bpNormal, color:'#10B981'},
+      {pct:bpLebih,  color:'#EF4444'},
+      {pct:bpNoData, color:'#CBD5E1'}
+    ], bpNormal+'%', 'Normal');
+    html += '<div style="flex:1;display:flex;flex-direction:column;gap:8px;">';
+    [
+      {label:'Normal (≤80%)', val:bNormal, pct:bpNormal, color:'#10B981'},
+      {label:'Beban Lebih (>80%)', val:bLebih, pct:bpLebih, color:'#EF4444'},
+      {label:'Tidak Ada Data', val:bNoData, pct:bpNoData, color:'#CBD5E1'}
+    ].forEach(function(item){
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<div style="width:10px;height:10px;border-radius:2px;background:'+item.color+';flex-shrink:0;"></div>';
+      html += '<div style="flex:1;font-size:var(--fs-xs);color:var(--pln-text2);">'+esc(item.label)+'</div>';
+      html += '<div style="font-size:var(--fs-xs);font-weight:700;color:var(--pln-text);">'+item.val+'</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+  }
+
+
+  // ── Per ULP progress bar (hanya untuk superadmin) ──
+  if (!isAdminUlp) {
+    html += '<div class="sec">Progress Inspeksi Per ULP</div>';
+    html += '<div class="card"><div class="ulp-bar-list">';
+    Object.keys(d.perULP||{}).sort().forEach(function(ulp){
+      var u = d.perULP[ulp];
+      var pct = u.total>0 ? Math.round(u.inspeksi/u.total*100) : 0;
+      html += '<div class="ulp-bar-row">' +
+        '<div class="ulp-bar-label">'+esc(ulp)+'</div>' +
+        '<div class="ulp-bar-track"><div class="ulp-bar-fill" style="width:'+pct+'%"></div></div>' +
+        '<div class="ulp-bar-count">'+u.inspeksi+'/'+u.total+'</div>' +
+        '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // ── 10 Inspeksi Terbaru ──
+  html += '<div class="sec">10 Inspeksi Terbaru</div>';
+  if (!d.terbaru||!d.terbaru.length) {
+    html += '<div class="empty-state"><div class="empty-icon">📋</div>Belum ada data inspeksi.</div>';
+  } else {
+    html += '<div class="card">';
+    d.terbaru.forEach(function(r){
+      var prosen = r.prosen !== '' && r.prosen !== null ? parseFloat(r.prosen) : null;
+      var bc = prosen === null ? '' : prosen > 80 ? 'badge-kritis' : prosen > 60 ? 'badge-perlu' : 'badge-normal';
+      var prosenLabel = prosen !== null ? 'Beban '+prosen.toFixed(1)+'%' : '';
+      html += '<div class="hist-item" onclick="bukaDetailGardu(\''+esc(r.noGardu)+'\')" style="cursor:pointer;">';
+      html += '<div class="hist-top">';
+      html += '<div style="flex:1;min-width:0;"><div class="hist-date">'+esc(r.noGardu)+' — '+esc(r.penyulang||'')+'</div>';
+      html += '<div class="hist-by">'+esc(r.tanggal)+' '+esc(r.jam)+' · '+esc(r.petugas)+'</div>';
+      html += '<div class="hist-by">'+esc(r.alamat||'')+'</div></div>';
+      html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">';
+      html += (bc?'<span class="badge '+bc+'">'+prosenLabel+'</span>':'');
+      html += '<span style="font-size:var(--fs-xs);color:var(--pln-text3);">Detail ›</span>';
+      html += '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    // Link ke spreadsheet lengkap
+    html += '<a href="'+SPREADSHEET_URL+'" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:var(--sp-xs);padding:clamp(10px,3vw,13px);background:var(--pln-bg);border:1.5px solid var(--pln-border);border-radius:var(--radius-sm);font-size:var(--fs-xs);color:var(--pln-biru2);font-weight:700;text-decoration:none;">📊 Lihat semua riwayat di Spreadsheet →</a>';
+  }
+
+  // ── Section: Gardu Kritis ──────────────────────────────────
+  html += renderGarduKritis();
+
+  html += '<div style="height:var(--sp-lg);"></div>';
+  document.getElementById('rekap-content').innerHTML = html;
+
+  // Muat data kritis setelah render (element sudah ada di DOM)
+  muatGarduKritis();
+}
+
+// ── Pagination state untuk Gardu Kritis
+var _kritisData = null;
+var _bebanPage = 1, _overduePage = 1;
+var KRITIS_PAGE_SIZE = 20;
+
+function muatGarduKritis() {
+  var s = getSession();
+  var params = { action: 'getGarduKritis' };
+  if (s && s.role !== 'superadmin' && s.ulp) {
+    var sheetVal = ulpAkunToSheet(s.ulp);
+    if (sheetVal) params.ulp = sheetVal;
+  }
+  apiGet(params, function(res) {
+    if (res.status !== 'ok') return;
+    var el = document.getElementById('gardu-kritis-content');
+    if (!el) return;
+    var d = res.data;
+    // Filter sisi klien sebagai pengaman tambahan
+    if (s && s.role !== 'superadmin' && s.ulp) {
+      var ulpSheet = normalizeULP(ulpAkunToSheet(s.ulp));
+      if (d.bebanLebih) d.bebanLebih = d.bebanLebih.filter(function(g){ return normalizeULP(g.ulp||'') === ulpSheet; });
+      if (d.overdue)    d.overdue    = d.overdue.filter(function(g){    return normalizeULP(g.ulp||'') === ulpSheet; });
+    }
+    _kritisData = d;
+    _bebanPage = 1; _overduePage = 1;
+    renderGarduKritisContent();
+  });
+}
+
+function renderGarduKritisContent() {
+  var el = document.getElementById('gardu-kritis-content');
+  if (!el || !_kritisData) return;
+  var d = _kritisData;
+  var html = '';
+
+  html += '<div class="sec">&#128308; Beban Lebih (&gt;80%)</div>';
+  if (!d.bebanLebih || !d.bebanLebih.length) {
+    html += '<div class="empty-state" style="padding:var(--sp-md);"><div class="empty-icon">&#9989;</div>Tidak ada gardu beban lebih.</div>';
+  } else {
+    var bTotal = d.bebanLebih.length;
+    var bTotalPages = Math.ceil(bTotal / KRITIS_PAGE_SIZE);
+    var bStart = (_bebanPage - 1) * KRITIS_PAGE_SIZE;
+    var bEnd = Math.min(bStart + KRITIS_PAGE_SIZE, bTotal);
+    html += '<div style="font-size:var(--fs-xs);color:var(--pln-text3);margin-bottom:6px;">Menampilkan <b>' + (bStart+1) + '</b>&ndash;<b>' + bEnd + '</b> dari <b>' + bTotal + '</b> gardu</div>';
+    html += '<div class="card" style="padding:0;overflow:hidden;">';
+    d.bebanLebih.slice(bStart, bEnd).forEach(function(g, i) {
+      var pb = parseFloat(g.prosen);
+      var barColor = pb > 100 ? '#7F1D1D' : pb > 90 ? '#C0392B' : '#D97706';
+      html += '<div style="padding:var(--sp-sm) var(--sp-md);' + (i>0 ? 'border-top:1px solid var(--pln-border);' : '') + 'cursor:pointer;" onclick="bukaDetailGardu(\'' + esc(g.noGardu) + '\')">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+      html += '<div style="font-weight:700;font-size:var(--fs-sm);color:var(--pln-text);">' + esc(g.noGardu) + '</div>';
+      html += '<div style="font-weight:800;font-size:var(--fs-md);color:' + barColor + ';">' + pb.toFixed(1) + '%</div>';
+      html += '</div>';
+      html += '<div style="font-size:var(--fs-xs);color:var(--pln-text2);margin-bottom:6px;">' + esc(g.ulp) + ' &middot; ' + esc(g.penyulang) + '</div>';
+      html += '<div style="background:#F0F4FA;border-radius:4px;height:8px;overflow:hidden;"><div style="height:100%;width:' + Math.min(pb,100) + '%;background:' + barColor + ';border-radius:4px;"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    if (bTotalPages > 1) html += _buildKritisPagination('beban', _bebanPage, bTotalPages);
+  }
+
+  html += '<div class="sec">&#9201;&#65039; Overdue (&gt;90 Hari)</div>';
+  if (!d.overdue || !d.overdue.length) {
+    html += '<div class="empty-state" style="padding:var(--sp-md);"><div class="empty-icon">&#9989;</div>Semua gardu sudah diukur dalam 90 hari.</div>';
+  } else {
+    var oTotal = d.overdue.length;
+    var oTotalPages = Math.ceil(oTotal / KRITIS_PAGE_SIZE);
+    var oStart = (_overduePage - 1) * KRITIS_PAGE_SIZE;
+    var oEnd = Math.min(oStart + KRITIS_PAGE_SIZE, oTotal);
+    html += '<div style="font-size:var(--fs-xs);color:var(--pln-text3);margin-bottom:6px;">Menampilkan <b>' + (oStart+1) + '</b>&ndash;<b>' + oEnd + '</b> dari <b>' + oTotal + '</b> gardu</div>';
+    html += '<div class="card" style="padding:0;overflow:hidden;">';
+    d.overdue.slice(oStart, oEnd).forEach(function(g, i) {
+      var hariTxt = g.hariSejak === null ? 'Belum pernah diukur' : g.hariSejak + ' hari';
+      var hariColor = g.hariSejak === null ? '#C0392B' : g.hariSejak > 180 ? '#7F1D1D' : '#C0392B';
+      html += '<div style="padding:var(--sp-sm) var(--sp-md);' + (i>0 ? 'border-top:1px solid var(--pln-border);' : '') + 'cursor:pointer;" onclick="bukaDetailGardu(\'' + esc(g.noGardu) + '\')">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+      html += '<div><div style="font-weight:700;font-size:var(--fs-sm);color:var(--pln-text);">' + esc(g.noGardu) + '</div>';
+      html += '<div style="font-size:var(--fs-xs);color:var(--pln-text2);">' + esc(g.ulp) + ' &middot; ' + esc(g.penyulang) + '</div></div>';
+      html += '<div style="text-align:right;"><div style="font-weight:700;font-size:var(--fs-xs);color:' + hariColor + ';">' + hariTxt + '</div>';
+      html += '<div style="font-size:var(--fs-xs);color:var(--pln-text3);">' + formatTgl(g.tglUkur) + '</div></div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    if (oTotalPages > 1) html += _buildKritisPagination('overdue', _overduePage, oTotalPages);
+  }
+
+  html += '<div style="height:var(--sp-lg);"></div>';
+  el.innerHTML = html;
+}
+
+function _buildKritisPagination(type, cur, total) {
+  var s = '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;margin-top:4px;gap:6px;flex-wrap:wrap;">';
+  s += '<div style="font-size:var(--fs-xs);color:var(--pln-text3);">Hal <b>' + cur + '</b> / <b>' + total + '</b></div>';
+  s += '<div style="display:flex;gap:4px;">';
+  var base = 'border:1.5px solid var(--pln-border);border-radius:6px;padding:4px 10px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;background:var(--pln-card);color:var(--pln-text2);';
+  var act  = 'border:1.5px solid var(--pln-biru2);border-radius:6px;padding:4px 10px;font-size:var(--fs-xs);font-weight:700;cursor:default;background:var(--pln-biru2);color:#fff;';
+  var dis  = 'border:1.5px solid var(--pln-border);border-radius:6px;padding:4px 10px;font-size:var(--fs-xs);font-weight:600;cursor:default;background:var(--pln-bg);color:var(--pln-text3);opacity:.45;';
+  s += cur > 1 ? '<button style="'+base+'" onclick="_goKritisPage(\''+type+'\','+(cur-1)+')">&#8249;</button>' : '<button style="'+dis+'" disabled>&#8249;</button>';
+  var ps = Math.max(1, cur-2), pe = Math.min(total, ps+4);
+  if (pe-ps < 4) ps = Math.max(1, pe-4);
+  for (var p = ps; p <= pe; p++) {
+    s += p===cur ? '<button style="'+act+'" disabled>'+p+'</button>' : '<button style="'+base+'" onclick="_goKritisPage(\''+type+'\','+p+')">'+p+'</button>';
+  }
+  s += cur < total ? '<button style="'+base+'" onclick="_goKritisPage(\''+type+'\','+(cur+1)+')">&#8250;</button>' : '<button style="'+dis+'" disabled>&#8250;</button>';
+  s += '</div></div>';
+  return s;
+}
+
+function _goKritisPage(type, page) {
+  if (type === 'beban') _bebanPage = page;
+  else _overduePage = page;
+  renderGarduKritisContent();
+  var el = document.getElementById('gardu-kritis-content');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderGarduKritis() {
+  var html = '<div class="sec">⚡ Gardu Kritis</div>';
+  html += '<div id="gardu-kritis-content"><div class="loading"><div class="spinner"></div>Memuat data kritis...</div></div>';
+  return html;
+}
+
+function statCardBig(val, title, sub, color, icon) {
+  return '<div style="background:'+color+';border-radius:var(--radius);padding:var(--sp-md);color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.15);">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'+
+      '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.85;">'+esc(title)+'</div>'+
+      '<span style="font-size:clamp(18px,4.5vw,22px);opacity:.7;">'+icon+'</span>'+
+    '</div>'+
+    '<div style="font-size:clamp(20px,5.5vw,26px);font-weight:800;margin-bottom:4px;">'+esc(val)+'</div>'+
+    '<div style="font-size:var(--fs-xs);opacity:.75;">'+esc(sub)+'</div>'+
+  '</div>';
+}
+
+// ── Format tanggal yyyy-mm-dd → dd/mm/yy ──────────────────────
+function formatTgl(raw) {
+  if (!raw) return '—';
+  var s = String(raw).trim();
+  // Format yyyy-mm-dd
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+'/'+m[2]+'/'+m[1].slice(2);
+  // Format dd/mm/yyyy atau dd-mm-yyyy sudah bagus, normalize
+  var m2 = s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+  if (m2) return m2[1]+'/'+m2[2]+'/'+m2[3].slice(2);
+  // Coba parse Date dari berbagai format
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var yy = String(d.getFullYear()).slice(2);
+    return dd+'/'+mm+'/'+yy;
+  }
+  return s; // fallback: tampilkan apa adanya
+}
+
+// ── Normalisasi nilai pengukuran: '' / null → null, '0' → '0' ─
+function normVal(v) {
+  if (v === null || v === undefined) return null;
+  var s = String(v).trim();
+  if (s === '' || s === '-' || s.toLowerCase() === 'null') return null;
+  return s;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ══ SCANNER FUNCTIONS ════════════════════════════════════════
+
+// ── ULP / Admin PIN functions ──────────────────────────────────
+function bukaModalAdmin() {
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('pin-error').style.display = 'none';
+  var m = document.getElementById('modal-admin-pin');
+  m.style.display = 'flex';
+  // Update judul modal sesuai konteks
+  var subEl = m.querySelector('div[style*="font-size:var(--fs-xs)"]');
+  if (subEl) subEl.textContent = 'Masukkan PIN Admin atau PIN ULP Anda';
+}
+
+function tutupModalAdmin() {
+  document.getElementById('modal-admin-pin').style.display = 'none';
+  pinBuffer = '';
+}
+
+function bukaFormTambahGardu() {
+  document.getElementById('modal-admin-panel').style.display = 'none';
+  document.getElementById('modal-tambah-gardu').style.display = 'flex';
+}
+
+function bukaFormEditGardu() {
+  document.getElementById('modal-admin-panel').style.display = 'none';
+  document.getElementById('edit-gardu-fields').style.display = 'none';
+  document.getElementById('ef-nogardu-cari').value = '';
+  // Reset pesan error jika ada
+  var msgEl = document.getElementById('edit-gardu-msg');
+  if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+  document.getElementById('modal-edit-gardu').style.display = 'flex';
+}
+
 function submitTambahGardu() {
   var noGardu = (document.getElementById('f-nogardu').value||'').trim().toUpperCase();
   var msgEl = document.getElementById('tambah-gardu-msg');
   var s = getSession();
+
+  // Untuk adminUlp, otomatis set ULP sesuai session
   var ulpField = document.getElementById('f-ulp');
   if (s && s.role === 'adminUlp' && s.ulp) {
     ulpField.value = s.ulp;
     ulpField.readOnly = true;
   }
-  var ulp = (ulpField.value||'').trim().toUpperCase();
+  var ulpRaw = (ulpField.value||'').trim().toUpperCase();
+  // [FIX #12] Strip prefix 'ULP ' agar nilai yang disimpan ke spreadsheet
+  // konsisten dengan nilai yang sudah ada (misal: 'ABEPURA' bukan 'ULP ABEPURA')
+  var ulp = ulpAkunToSheet(ulpRaw);
+
   if (!noGardu || !ulp) {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='NO GARDU dan ULP wajib diisi.'; return;
   }
-
-  // Minta PIN dari user
-  var pinToSend = prompt("Masukkan PIN Anda untuk menambah gardu:");
-  if (!pinToSend) {
-    msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
-    msgEl.textContent='PIN wajib diisi.';
-    return;
-  }
-
+  // Kirim PIN sesuai ULP — adminUlp pakai PIN ULP, superadmin pakai PIN ADMIN
+  var ulpKeyForPin = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var pinToSend = ULP_PIN_MAP[ulpKeyForPin] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'tambahGardu', pin:pinToSend, noGardu:noGardu, ulp:ulp,
     penyulang:(document.getElementById('f-penyulang').value||'').trim(),
@@ -2028,24 +4005,92 @@ function submitTambahGardu() {
   });
 }
 
+function cariGarduUntukEdit() {
+  var noGardu = (document.getElementById('ef-nogardu-cari').value||'').trim().toUpperCase();
+  if (!noGardu) { alert('Ketik NO GARDU terlebih dahulu.'); return; }
+
+  // [Fix Prefix] Validasi prefix NO_GARDU sesuai ULP login sebelum query ke server
+  var s = getSession();
+  if (s && s.role === 'adminUlp' && s.ulp) {
+    var ulpKey = String(s.ulp).trim().toUpperCase();
+    var prefixArr = (ULP_SHEET_MAP[ulpKey] && ULP_SHEET_MAP[ulpKey].prefix) ? ULP_SHEET_MAP[ulpKey].prefix : [];
+    if (prefixArr.length > 0) {
+      var prefixMatch = prefixArr.some(function(p){ return noGardu.indexOf(p.toUpperCase()) === 0; });
+      if (!prefixMatch) {
+        var msgEl = document.getElementById('edit-gardu-msg');
+        var prefixLabel = prefixArr.join(', ');
+        if (msgEl) {
+          msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
+          msgEl.textContent='❌ NO GARDU "'+noGardu+'" tidak sesuai dengan '+s.ulp+'. Prefix yang valid: '+prefixLabel+'.';
+        } else {
+          alert('NO GARDU "'+noGardu+'" tidak sesuai '+s.ulp+'. Prefix yang valid: '+prefixLabel+'.');
+        }
+        document.getElementById('edit-gardu-fields').style.display = 'none';
+        return;
+      }
+    }
+  }
+
+  apiGet({action:'getDetailGardu', noGardu:noGardu}, function(res){
+    if (res.status!=='ok'||!res.data) { alert('Gardu tidak ditemukan: '+noGardu); return; }
+    var g = res.data;
+    // [Fix v33] adminUlp hanya bisa edit gardu ULP-nya sendiri
+    var s = getSession();
+    if (s && s.role === 'adminUlp' && normalizeULP(g['ULP']||'') !== normalizeULP(ulpAkunToSheet(s.ulp))) {
+      var msgEl = document.getElementById('edit-gardu-msg');
+      if (msgEl) {
+        msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
+        msgEl.textContent='❌ Gardu "'+g['NO_GARDU']+'" milik '+g['ULP']+'. Anda hanya bisa edit gardu milik '+s.ulp+'.';
+      } else {
+        alert('Akses ditolak: Gardu ini milik '+g['ULP']+', bukan '+s.ulp+'.');
+      }
+      document.getElementById('edit-gardu-fields').style.display = 'none';
+      return;
+    }
+    // Sembunyikan field ULP untuk adminUlp (tidak boleh ganti ULP)
+    var ulpFieldWrap = document.getElementById('ef-ulp') && document.getElementById('ef-ulp').parentNode;
+    document.getElementById('ef-nogardu-lama').value  = g['NO_GARDU']||'';
+    document.getElementById('ef-nogardu-baru').value  = '';
+    document.getElementById('ef-ulp').value           = g['ULP']||'';
+    if (s && s.role === 'adminUlp') document.getElementById('ef-ulp').readOnly = true;
+    else document.getElementById('ef-ulp').readOnly = false;
+    document.getElementById('ef-penyulang').value     = g['PENYULANG']||'';
+    document.getElementById('ef-alamat').value        = g['ALAMAT']||'';
+    document.getElementById('ef-daya').value          = g['KAPASITAS_KVA']||'';
+    document.getElementById('ef-status').value        = (g['STATUS_OPERASIONAL']||'AKTIF').toUpperCase();
+    document.getElementById('edit-gardu-fields').style.display = 'flex';
+    var msgEl = document.getElementById('edit-gardu-msg');
+    if (msgEl) msgEl.style.display = 'none';
+  });
+}
+
 function submitEditGardu() {
   var noLama = document.getElementById('ef-nogardu-lama').value;
   if (!noLama) { alert('Cari gardu dahulu.'); return; }
   var msgEl = document.getElementById('edit-gardu-msg');
   var s = getSession();
-  var ulpVal = (document.getElementById('ef-ulp').value||'').trim().toUpperCase();
+
+  // adminUlp tidak boleh mengubah ULP ke ULP lain
+  var ulpRaw = (document.getElementById('ef-ulp').value||'').trim().toUpperCase();
+  // [FIX #12b] Strip prefix 'ULP ' agar konsisten dengan nilai spreadsheet
+  var ulpVal = ulpAkunToSheet(ulpRaw);
+
   if (s && s.role === 'adminUlp' && normalizeULP(ulpVal) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='Anda tidak bisa mengubah ULP gardu ke ULP lain.'; return;
   }
 
-  var pinToSend = prompt("Masukkan PIN Anda untuk mengedit gardu:");
-  if (!pinToSend) {
-    msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
-    msgEl.textContent='PIN wajib diisi.';
-    return;
-  }
+  // ── Konfirmasi sebelum simpan ──
+  var noBaruVal = (document.getElementById('ef-nogardu-baru').value||'').trim().toUpperCase();
+  var konfirmasiMsg = '⚠️ Konfirmasi Perubahan Data Gardu\n\n' +
+    'Gardu  : ' + noLama + (noBaruVal && noBaruVal !== noLama ? ' → ' + noBaruVal : '') + '\n' +
+    'ULP    : ' + ulpVal + '\n' +
+    'Status : ' + (document.getElementById('ef-status').value||'AKTIF') + '\n\n' +
+    'Perubahan ini akan tersimpan ke database.\nLanjutkan?';
+  if (!confirm(konfirmasiMsg)) return;
 
+  var ulpKeyForPin2 = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var pinToSend = ULP_PIN_MAP[ulpKeyForPin2] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'editGardu', pin:pinToSend, noGarduLama:noLama,
     noGarduBaru:(document.getElementById('ef-nogardu-baru').value||'').trim().toUpperCase(),
@@ -2065,14 +4110,354 @@ function submitEditGardu() {
   });
 }
 
+function tutupPanelAdmin() {
+  document.getElementById('modal-admin-panel').style.display = 'none';
+}
+
+function keluarAdmin() {
+  // Backward compat — sekarang menggunakan doLogout
+  doLogout();
+}
+
+// [v32+] Buka detail gardu langsung dari hasil scan (tanpa konfirmasi)
+function cariGarduDariScannerAuto(val) {
+  if (!val) return;
+  var s = getSession();
+  bukaTab('tab-scan', 2);
+  document.getElementById('list-scan').innerHTML = '<div class="loading"><div class="spinner"></div>Membuka gardu <b>'+esc(val)+'</b>...</div>';
+
+  apiGet({action:'getDetailGardu', noGardu:val}, function(res) {
+    if (res.status === 'ok') {
+      var g = res.data;
+      // Cek ULP — petugas & adminUlp hanya boleh lihat ULP sendiri
+      if (s && s.role !== 'superadmin' && normalizeULP((g['ULP']||'').trim()) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
+        document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
+        // Double rAF: tunggu tab selesai render BARU tampilkan popup
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || '');
+          });
+        });
+        return;
+      }
+      if (!allGardu.find(function(x){ return x['NO_GARDU']===g['NO_GARDU']; })) allGardu.push(g);
+      bukaDetailGardu(g['NO_GARDU']);
+    } else {
+      // Coba fallback ke cariGardu
+      apiGet({action:'cariGardu', keyword:val}, function(res2) {
+        if (res2.status !== 'ok' || !res2.data.length) {
+          document.getElementById('list-scan').innerHTML = '<div class="alert alert-warn"><span class="alert-icon">🔍</span><span class="alert-text">Gardu tidak ditemukan: <b>'+esc(val)+'</b></span></div>';
+          return;
+        }
+        var garduList = res2.data;
+        if (s && s.role !== 'superadmin') {
+          garduList = garduList.filter(function(g){ return normalizeULP((g['ULP']||'').trim()) === normalizeULP(ulpAkunToSheet(s.ulp)); });
+        }
+        if (!garduList.length) {
+          document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
+          requestAnimationFrame(function(){
+            requestAnimationFrame(function(){
+              tampilPopupUlpSalah(val, '');
+            });
+          });
+          return;
+        }
+        garduList.forEach(function(g){ if(!allGardu.find(function(x){return x['NO_GARDU']===g['NO_GARDU'];})) allGardu.push(g); });
+        if (garduList.length === 1) {
+          bukaDetailGardu(garduList[0]['NO_GARDU']);
+        } else {
+          document.getElementById('list-scan').innerHTML = '<div class="sec">Pilih Gardu yang Sesuai</div>' +
+            garduList.map(function(g){
+              return '<div class="gardu-item" onclick="bukaDetailGardu(\''+esc(g['NO_GARDU'])+'\')">'+
+                '<div class="gardu-icon">🏭</div>'+
+                '<div class="gardu-info"><div class="gardu-id">'+esc(g['NO_GARDU']||'')+'</div>'+
+                '<div class="gardu-name">'+esc(g['ULP']||'')+' — '+esc(g['PENYULANG']||'')+'</div>'+
+                '<div class="gardu-sub">'+esc(g['ALAMAT']||'')+'</div></div>'+
+                '<div class="gardu-right"><span style="font-size:var(--fs-xs);color:var(--pln-kuning);font-weight:700;">▶ Buka</span></div></div>';
+            }).join('');
+        }
+      });
+    }
+  });
+}
+
+function tampilPopupUlpSalah(noGardu, namaUlp) {
+  var pop = document.getElementById('popup-ulp-salah');
+  document.getElementById('popup-ulp-nogardu').textContent = noGardu || '';
+  document.getElementById('popup-ulp-nama').textContent = 'ULP: ' + (namaUlp || '-');
+  if (pop) { pop.classList.add('show'); }
+  // Hentikan kelap-kelip flash
+  var flash = document.getElementById('scan-flash-overlay');
+  if (flash) { flash.classList.remove('flash'); }
+}
+
+function tutupPopupUlpSalah() {
+  var pop = document.getElementById('popup-ulp-salah');
+  if (pop) { pop.classList.remove('show'); }
+}
+
+// ══ PWA Install Banner ═══════════════════════════════════════
+var _pwaInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  // Jangan tampilkan jika sudah pernah di-dismiss di sesi ini
+  if (sessionStorage.getItem('pwa_banner_dismissed') === '1') return;
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'flex';
+});
+
+// Cek saat load: jika sudah running sebagai PWA (standalone), sembunyikan banner
+window.addEventListener('load', function() {
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (isStandalone) {
+    var banner = document.getElementById('pwa-install-banner');
+    if (banner) banner.style.display = 'none';
+  }
+});
+
+window.addEventListener('appinstalled', function() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+  _pwaInstallPrompt = null;
+});
+
+function installPWA() {
+  if (!_pwaInstallPrompt) {
+    alert('Aplikasi sudah terinstall atau browser Anda tidak mendukung instalasi PWA.');
+    return;
+  }
+  _pwaInstallPrompt.prompt();
+  _pwaInstallPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      var banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.style.display = 'none';
+    }
+    _pwaInstallPrompt = null;
+  });
+}
+
+function tutupBannerInstall() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+  // Simpan preferensi agar banner tidak muncul lagi di sesi ini
+  sessionStorage.setItem('pwa_banner_dismissed', '1');
+}
 // ══════════════════════════════════════════════════════════════
-//  SCANNER & PWA (TETAP SAMA)
+
+function updatePinDots() {
+  var dots = document.querySelectorAll('#pin-dots .pin-dot');
+  dots.forEach(function(d, i){ d.classList.toggle('filled', i < pinBuffer.length); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('#pin-numpad .pin-key').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var v = this.getAttribute('data-v');
+      if (v === 'clear') { pinBuffer = ''; updatePinDots(); return; }
+      if (v === 'back') { pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); return; }
+      if (pinBuffer.length >= 4) return;
+      pinBuffer += v;
+      updatePinDots();
+      if (pinBuffer.length === 4) setTimeout(cekPinLogin, 120);
+    });
+  });
+});
+
+function cekPinLogin() {
+  var errEl = document.getElementById('pin-error');
+  var s = getSession();
+  var mode = document.getElementById('modal-admin-pin').getAttribute('data-mode') || 'panel';
+
+  // [FIX #11] Hapus jalur fallback lama yang bisa konflik.
+  // Semua autentikasi sekarang melalui satu jalur terpusat.
+
+  // Mode 'panel': PIN digunakan untuk membuka menu admin (adminUlp)
+  if (mode === 'panel' && s && s.role === 'adminUlp') {
+    var ulpKey = String(s.ulp||'').trim().toUpperCase();
+    var pinBenar = ULP_PIN_MAP[ulpKey] || ULP_PIN_MAP['ADMIN'];
+    if (pinBuffer === pinBenar || pinBuffer === ULP_PIN_MAP['ADMIN']) {
+      tutupModalAdmin();
+      _tampilkanPanelAdmin(s);
+      return;
+    }
+    // PIN salah
+    if (errEl) { errEl.style.display='block'; errEl.textContent='PIN salah. Coba lagi.'; }
+    pinBuffer = ''; updatePinDots();
+    setTimeout(function(){ if(errEl) errEl.style.display='none'; }, 2000);
+    return;
+  }
+
+  // Mode 'panel' untuk superadmin: gunakan PIN ADMIN saja
+  if (mode === 'panel' && s && s.role === 'superadmin') {
+    if (pinBuffer === ULP_PIN_MAP['ADMIN']) {
+      adminSudahLogin = true;
+      tutupModalAdmin();
+      _tampilkanPanelAdmin(s);
+      return;
+    }
+    if (errEl) { errEl.style.display='block'; errEl.textContent='PIN salah. Coba lagi.'; }
+    pinBuffer = ''; updatePinDots();
+    setTimeout(function(){ if(errEl) errEl.style.display='none'; }, 2000);
+    return;
+  }
+
+  // Fallback: jika belum ada sesi (mode lama/standalone PIN login)
+  // Hanya superadmin PIN yang bisa membuka panel
+  if (pinBuffer === ULP_PIN_MAP['ADMIN']) {
+    adminSudahLogin = true;
+    currentULP = '';
+    tutupModalAdmin();
+    document.getElementById('btn-admin-lock').style.color = 'var(--pln-kuning)';
+    document.getElementById('btn-admin-lock').title = 'Admin Aktif';
+    document.getElementById('modal-admin-panel').style.display = 'flex';
+    activeFilterULP = '';
+    document.querySelectorAll('#filter-ulp-row .tag').forEach(function(t){ t.classList.toggle('active', t.textContent.trim()==='Semua'); });
+    applyDaftarFilter();
+    return;
+  }
+
+  // PIN salah
+  if (errEl) { errEl.style.display='block'; errEl.textContent='PIN salah. Coba lagi.'; }
+  pinBuffer = ''; updatePinDots();
+  setTimeout(function(){ if(errEl) errEl.style.display='none'; }, 2000);
+}
+
+
 // ══════════════════════════════════════════════════════════════
-// ... (semua fungsi scanner, PWA, SOP, dll. tetap sama seperti sebelumnya)
+// SCANNER ENGINE — gabungan v3000 (stabil) + v3002 (fitur ULP)
+// Prinsip:
+//   1. Kamera di-stop SEKALI saja via hentikanKamera() yang bersih
+//   2. Flag scannerAktif dijaga ketat — tidak ada double-start/stop
+//   3. Setelah stop selesai (Promise resolved) baru proses hasil scan
+//   4. Langsung buka detail gardu tanpa konfirmasi (efisien lapangan)
+//   5. Filter ULP + popup notifikasi tetap aktif dari v3002
+// ══════════════════════════════════════════════════════════════
+
+// Guard global — pastikan callback scan hanya diproses 1x
+var _scanDone = false;
+
+function bukaScanner() {
+  _scanDone = false;
+  document.getElementById('scanner-modal').classList.add('open');
+  document.getElementById('scanner-result-box').style.display = 'none';
+  document.getElementById('scanner-manual').value = '';
+  setStatus('Menginisialisasi kamera...', '');
+  setTimeout(mulaiKamera, 400);
+}
+
+function tutupScanner() {
+  document.getElementById('scanner-modal').classList.remove('open');
+  hentikanKamera();
+}
+
+function setStatus(msg, cls) {
+  var el = document.getElementById('scanner-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'scanner-status' + (cls ? ' '+cls : '');
+}
+
+// hentikanKamera — stop bersih, null instance setelah selesai
+// Mengembalikan Promise agar pemanggil bisa tunggu selesai
+function hentikanKamera() {
+  scannerAktif = false;
+  if (!html5QrCode) return Promise.resolve();
+  var qr = html5QrCode;
+  html5QrCode = null;
+  return qr.stop()
+    .catch(function(){})
+    .then(function(){
+      try { qr.clear(); } catch(e) {}
+    });
+}
+
+function mulaiKamera() {
+  if (scannerAktif) return;
+  _scanDone = false;
+  if (!html5QrCode) {
+    try { html5QrCode = new Html5Qrcode('qr-reader'); }
+    catch(e) { setStatus('❌ Gagal inisialisasi kamera.','err'); return; }
+  }
+  var config = {
+    fps: 15,
+    qrbox: function(w,h){ var s=Math.min(w,h)*0.7; return {width:Math.round(s),height:Math.round(s)}; },
+    aspectRatio: 1.0,
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8
+    ],
+    supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+  };
+  html5QrCode.start(
+    { facingMode: 'environment' }, config,
+    function(decoded) {
+      // Guard: abaikan jika sudah diproses sebelumnya
+      if (_scanDone) return;
+      _scanDone = true;
+
+      // Simpan nilai dulu sebelum async apapun
+      var scannedVal = decoded.trim().toUpperCase();
+
+      // UI feedback — flash, animasi, toast
+      setStatus('✅ Kode berhasil terdeteksi!', 'ok');
+      var box = document.getElementById('scanner-result-box');
+      if (box) {
+        box.style.display = 'block';
+        document.getElementById('scanner-result-val').textContent = scannedVal;
+        document.getElementById('scanner-manual').value = scannedVal;
+        box.classList.remove('scan-success');
+        void box.offsetWidth;
+        box.classList.add('scan-success');
+      }
+      var flash = document.getElementById('scan-flash-overlay');
+      if (flash) { flash.classList.remove('flash'); void flash.offsetWidth; flash.classList.add('flash'); }
+      var toast = document.getElementById('scan-toast');
+      var toastId = document.getElementById('toast-gardu-id');
+      if (toast && toastId) {
+        toastId.textContent = scannedVal;
+        toast.classList.add('show');
+        setTimeout(function(){ toast.classList.remove('show'); }, 2000);
+      }
+
+      // Tutup modal dulu (UI responsif)
+      document.getElementById('scanner-modal').classList.remove('open');
+
+      // Stop kamera dengan bersih, BARU proses hasil scan
+      hentikanKamera().then(function() {
+        cariGarduDariScannerAuto(scannedVal);
+      });
+    },
+    function(){} // error per-frame — abaikan
+  ).then(function(){
+    scannerAktif = true;
+    setStatus('Arahkan kamera ke barcode / QR code', '');
+  }).catch(function(err){
+    scannerAktif = false;
+    html5QrCode = null;
+    _scanDone = false;
+    var msg = String(err||'');
+    if (msg.indexOf('Permission')>-1||msg.indexOf('NotAllowed')>-1)
+      setStatus('❌ Izin kamera ditolak. Aktifkan di pengaturan browser.','err');
+    else if (msg.indexOf('NotFound')>-1)
+      setStatus('❌ Kamera tidak ditemukan di perangkat ini.','err');
+    else
+      setStatus('❌ Kamera tidak bisa diakses. Gunakan input manual.','err');
+  });
+}
+
+function cariGarduDariScanner() {
+  var val = (document.getElementById('scanner-manual').value||'').trim().toUpperCase();
+  if (!val) { alert('Masukkan ID gardu terlebih dahulu.'); return; }
+  tutupScanner();
+  cariGarduDariScannerAuto(val);
+}
 
 </script>
-<!-- ═══════════════════════════════════════════════════════════ -->
-<!-- AKHIR FILE INDEX.HTML (FULL)                              -->
-<!-- ═══════════════════════════════════════════════════════════ -->
 </body>
 </html>
