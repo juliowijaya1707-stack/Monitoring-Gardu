@@ -864,7 +864,7 @@ body{
       <img src="icon-192.png" alt="PLN" onerror="this.parentNode.innerHTML='<span style=\'font-size:24px;font-weight:900;color:#0A2D6B;\'>PLN</span>'">
     </div>
     <div class="login-title">PLN UP3 JAYAPURA</div>
-    <div class="login-sub">Manajemen Gardu (MaDu)</div>
+    <div class="login-sub">Manajemen Gardu</div>
   </div>
   <div class="login-card">
     <div class="login-card-title">🔐 Masuk ke Sistem</div>
@@ -882,7 +882,7 @@ body{
     <div id="login-err" class="login-err">Username atau password salah.</div>
     <button class="login-btn" onclick="doLogin()">Masuk →</button>
   </div>
-  <div class="login-footer">Manajemen Gardu · PT. PLN (Persero) UP3 Jayapura</div>
+  <div class="login-footer">PT. PLN (Persero) UP3 Jayapura</div>
 </div>
 
 <!-- ══ PWA INSTALL BANNER ══ -->
@@ -907,6 +907,7 @@ body{
       <span id="topbar-username-label" class="topbar-username">—</span>
     </div>
     <button id="btn-admin-lock" onclick="bukaMenuAdmin()" title="Menu Admin" style="background:none;border:none;color:rgba(255,255,255,.45);font-size:20px;cursor:pointer;">🔒</button>
+    <button id="btn-signout" onclick="doLogout()" title="Sign Out" style="background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.85);font-size:12px;font-weight:700;cursor:pointer;padding:5px 10px;border-radius:20px;letter-spacing:.3px;display:none;">⏏ Keluar</button>
   </div>
   <div class="page-body">
     <div id="data-freshness-banner" class="data-freshness-banner freshness-ok" style="display:none;">
@@ -1142,12 +1143,59 @@ body{
       <button onclick="document.getElementById('modal-tambah-gardu').style.display='none'" style="background:var(--pln-bg);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-sm);">
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">NO GARDU *</label><input id="f-nogardu" class="form-input" placeholder="Contoh: ABE210" style="text-transform:uppercase;"></div>
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP *</label><input id="f-ulp" class="form-input" placeholder="Contoh: ULP ABEPURA" style="text-transform:uppercase;"></div>
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">PENYULANG</label><input id="f-penyulang" class="form-input" placeholder="Nama penyulang"></div>
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ALAMAT</label><input id="f-alamat" class="form-input" placeholder="Alamat lokasi gardu"></div>
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">DAYA (kVA)</label><input id="f-daya" class="form-input" type="number" placeholder="Contoh: 160"></div>
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">FASA</label><select id="f-fasa" class="form-input"><option value="3">3 Fasa</option><option value="1">1 Fasa</option></select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNIT UP *</label>
+        <select id="f-unitup" class="form-input" style="text-transform:uppercase;">
+          <option value="">-- Pilih Unit UP --</option>
+          <option value="UP3.7614">UP3.7614 — UP3 JAYAPURA</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP *</label>
+        <select id="f-ulp" class="form-input" onchange="onTambahULPChange()" style="text-transform:uppercase;">
+          <option value="">-- Pilih ULP --</option>
+          <option value="ABEPURA">ABEPURA</option>
+          <option value="JAYAPURA">JAYAPURA</option>
+          <option value="SENTANI">SENTANI</option>
+          <option value="SARMI">SARMI</option>
+          <option value="ARSO">ARSO</option>
+          <option value="GENYEM">GENYEM</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">PENYULANG</label>
+        <select id="f-penyulang" class="form-input">
+          <option value="">-- Pilih ULP dulu --</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">NO GARDU *</label>
+        <input id="f-nogardu" class="form-input" placeholder="Contoh: ABE210" style="text-transform:uppercase;"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ALAMAT</label>
+        <input id="f-alamat" class="form-input" placeholder="Alamat lokasi gardu"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">KAPASITAS (kVA)</label>
+        <input id="f-daya" class="form-input" type="number" placeholder="Contoh: 160"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">TIPE</label>
+        <select id="f-tipe" class="form-input">
+          <option value="">-- Pilih Tipe --</option>
+          <option value="GD">GD (Gardu Distribusi)</option>
+          <option value="GP">GP (Gardu Portal)</option>
+          <option value="GH">GH (Gardu Hubung)</option>
+          <option value="GT">GT (Gardu Tiang)</option>
+          <option value="GG">GG (Gardu Gedung)</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS KEPEMILIKAN</label>
+        <select id="f-kepemilikan" class="form-input">
+          <option value="">-- Pilih --</option>
+          <option value="PLN">PLN</option>
+          <option value="NON">NON PLN</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS OPERASIONAL</label>
+        <select id="f-status-op" class="form-input">
+          <option value="AKTIF">AKTIF</option>
+          <option value="NON-AKTIF">NON-AKTIF</option>
+        </select></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">MEREK TRAFO</label>
+        <input id="f-merek" class="form-input" placeholder="Contoh: UNINDO, SCHNEIDER, ABB"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LATITUDE</label>
+        <input id="f-lat" class="form-input" type="number" step="any" placeholder="Contoh: -2.5916"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LONGITUDE</label>
+        <input id="f-lng" class="form-input" type="number" step="any" placeholder="Contoh: 140.6690"></div>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">KETERANGAN</label>
+        <input id="f-keterangan" class="form-input" placeholder="Keterangan tambahan (opsional)"></div>
       <div id="tambah-gardu-msg" style="display:none;padding:10px;border-radius:var(--radius-sm);font-size:var(--fs-xs);"></div>
       <div class="btn-row">
         <button class="btn btn-outline" onclick="document.getElementById('modal-tambah-gardu').style.display='none'">Batal</button>
@@ -1165,16 +1213,72 @@ body{
       <button onclick="document.getElementById('modal-edit-gardu').style.display='none'" style="background:var(--pln-bg);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-sm);">
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">CARI GARDU *</label><input id="ef-nogardu-cari" class="form-input" placeholder="Ketik NO GARDU lalu tekan Cari" style="text-transform:uppercase;"><button class="btn btn-outline" onclick="cariGarduUntukEdit()">🔍 Cari & Muat Data</button></div>
+      <div>
+        <label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">CARI GARDU *</label>
+        <div style="display:flex;gap:8px;">
+          <input id="ef-nogardu-cari" class="form-input" placeholder="Ketik NO GARDU lalu tekan Cari" style="text-transform:uppercase;flex:1;">
+          <button class="btn btn-outline" onclick="cariGarduUntukEdit()" style="flex-shrink:0;">🔍 Cari</button>
+        </div>
+      </div>
+      <div id="edit-gardu-msg" style="display:none;padding:10px;border-radius:var(--radius-sm);font-size:var(--fs-xs);"></div>
       <div id="edit-gardu-fields" style="display:none;flex-direction:column;gap:var(--sp-sm);">
         <input type="hidden" id="ef-nogardu-lama">
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">NO GARDU BARU</label><input id="ef-nogardu-baru" class="form-input" placeholder="Kosongkan jika tidak berubah" style="text-transform:uppercase;"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP</label><input id="ef-ulp" class="form-input"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">PENYULANG</label><input id="ef-penyulang" class="form-input"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ALAMAT</label><input id="ef-alamat" class="form-input"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">DAYA (kVA)</label><input id="ef-daya" class="form-input" type="number"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS</label><select id="ef-status" class="form-input"><option value="AKTIF">AKTIF</option><option value="NON-AKTIF">NON-AKTIF</option></select></div>
-        <div id="edit-gardu-msg" style="display:none;padding:10px;border-radius:var(--radius-sm);font-size:var(--fs-xs);"></div>
+        <div style="background:var(--pln-bg);border-radius:var(--radius-sm);padding:var(--sp-sm);font-size:var(--fs-xs);color:var(--pln-text3);">
+          ℹ️ Data gardu dimuat. Edit field yang diperlukan lalu klik Simpan.
+        </div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">NO GARDU BARU</label>
+          <input id="ef-nogardu-baru" class="form-input" placeholder="Kosongkan jika tidak berubah" style="text-transform:uppercase;"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNIT UP</label>
+          <select id="ef-unitup" class="form-input">
+            <option value="">-- Pilih Unit UP --</option>
+            <option value="UP3.7614">UP3.7614 — UP3 JAYAPURA</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP</label>
+          <select id="ef-ulp" class="form-input" onchange="onEditULPChange()">
+            <option value="">-- Pilih ULP --</option>
+            <option value="ABEPURA">ABEPURA</option>
+            <option value="JAYAPURA">JAYAPURA</option>
+            <option value="SENTANI">SENTANI</option>
+            <option value="SARMI">SARMI</option>
+            <option value="ARSO">ARSO</option>
+            <option value="GENYEM">GENYEM</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">PENYULANG</label>
+          <select id="ef-penyulang" class="form-input">
+            <option value="">-- Pilih ULP dulu --</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ALAMAT</label>
+          <input id="ef-alamat" class="form-input" placeholder="Alamat lokasi gardu"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">KAPASITAS (kVA)</label>
+          <input id="ef-daya" class="form-input" type="number" placeholder="Contoh: 160"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">TIPE</label>
+          <select id="ef-tipe" class="form-input">
+            <option value="">-- Pilih Tipe --</option>
+            <option value="GD">GD (Gardu Distribusi)</option>
+            <option value="GP">GP (Gardu Portal)</option>
+            <option value="GH">GH (Gardu Hubung)</option>
+            <option value="GT">GT (Gardu Tiang)</option>
+            <option value="GG">GG (Gardu Gedung)</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS KEPEMILIKAN</label>
+          <select id="ef-kepemilikan" class="form-input">
+            <option value="">-- Pilih --</option>
+            <option value="PLN">PLN</option>
+            <option value="NON">NON PLN</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS OPERASIONAL</label>
+          <select id="ef-status" class="form-input">
+            <option value="AKTIF">AKTIF</option>
+            <option value="NON-AKTIF">NON-AKTIF</option>
+          </select></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">MEREK TRAFO</label>
+          <input id="ef-merek" class="form-input" placeholder="Contoh: UNINDO, SCHNEIDER, ABB"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LATITUDE</label>
+          <input id="ef-lat" class="form-input" type="number" step="any" placeholder="Contoh: -2.5916"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LONGITUDE</label>
+          <input id="ef-lng" class="form-input" type="number" step="any" placeholder="Contoh: 140.6690"></div>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">KETERANGAN</label>
+          <input id="ef-keterangan" class="form-input" placeholder="Keterangan tambahan"></div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="document.getElementById('modal-edit-gardu').style.display='none'">Batal</button>
           <button class="btn btn-blue" onclick="submitEditGardu()">Simpan Perubahan</button>
@@ -1212,12 +1316,20 @@ body{
     <div style="font-size:var(--fs-xs);font-weight:700;color:var(--pln-text2);margin-bottom:8px;">📁 FORMAT FILE</div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:var(--sp-md);">
       <div id="fmt-a-card" onclick="pilihFormat('A')" style="border:2px solid var(--pln-biru2);border-radius:10px;padding:10px 12px;cursor:pointer;background:#EBF4FF;">
-        <div style="display:flex;align-items:center;gap:8px;"><span>📗</span><span style="font-weight:700;">Format A — Excel (.xlsx)</span></div>
-        <div style="font-size:var(--fs-xs);color:var(--pln-text3);padding-left:26px;">4 sheet : Ringkasan, Data Lengkap, Gardu Kritis, Per-ULP.</div>
+        <div style="display:flex;align-items:center;gap:8px;"><span>📗</span><span style="font-weight:700;">Format A — Excel Inspeksi (.xlsx)</span></div>
+        <div style="font-size:var(--fs-xs);color:var(--pln-text3);padding-left:26px;">4 sheet: Ringkasan, Data Lengkap, Gardu Kritis, Per-ULP.</div>
       </div>
       <div id="fmt-b-card" onclick="pilihFormat('B')" style="border:2px solid var(--pln-border);border-radius:10px;padding:10px 12px;cursor:pointer;">
         <div style="display:flex;align-items:center;gap:8px;"><span>🖨️</span><span style="font-weight:700;">Format B — Laporan Print (HTML)</span></div>
         <div style="font-size:var(--fs-xs);color:var(--pln-text3);padding-left:26px;">Tampilan resmi dengan kop PLN.</div>
+      </div>
+      <div id="fmt-c-card" onclick="pilihFormat('C')" style="border:2px solid var(--pln-border);border-radius:10px;padding:10px 12px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span>📊</span><span style="font-weight:700;">Format C — Rekap Gardu per Status Operasi</span></div>
+        <div style="font-size:var(--fs-xs);color:var(--pln-text3);padding-left:26px;">Tabel jumlah gardu per penyulang berdasarkan status AKTIF/NON-AKTIF.</div>
+      </div>
+      <div id="fmt-d-card" onclick="pilihFormat('D')" style="border:2px solid var(--pln-border);border-radius:10px;padding:10px 12px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span>🏢</span><span style="font-weight:700;">Format D — Rekap Gardu per Status Kepemilikan</span></div>
+        <div style="font-size:var(--fs-xs);color:var(--pln-text3);padding-left:26px;">Tabel jumlah gardu per penyulang berdasarkan status PLN/NON.</div>
       </div>
     </div>
     <input type="hidden" id="export-format-selected" value="A">
@@ -1237,6 +1349,27 @@ body{
 //  Role: superadmin | adminulp | petugas
 //  Storage: sessionStorage (session token sementara)
 // ══════════════════════════════════════════════════════════════
+
+// ── Data UNITUP (kode unit sesuai gambar) ────────────────────
+var UNITUP_LIST = [
+  { kode: 'UP3.7614', nama: 'UP3 JAYAPURA' }
+];
+
+// ── Daftar ULP (untuk dropdown) ────────────────────────────
+var ULP_LIST = [
+  'ABEPURA', 'JAYAPURA', 'SENTANI', 'SARMI', 'ARSO', 'GENYEM'
+];
+
+// ── Daftar Penyulang per ULP (untuk dropdown) ──────────────
+// Tambah/sesuaikan dengan data aktual di spreadsheet
+var PENYULANG_MAP = {
+  'ABEPURA':  ['ANGGREK','BOUGENVILLE','DAHLIA','DPRD KOTA','EDELWAISS','EVAKUASI DAYA 2 ABE','KOYA','KOYA BARAT','KOYA GAPURA','KOYA TIMUR','OTONOM','PLBN','SAGA MALL','SAKURA','SOKA','TANAH HITAM','TERATAI'],
+  'JAYAPURA': ['BANDARA','BATE','ENTROP','HAMADI','IFAR GUNUNG','KASWARI','KELAPA DUA','KOTARAJA','NUMBAY','TRIKORA'],
+  'SENTANI':  ['ASEI','HARAPAN','IFAR','KEMIRI','KONYA','NOLOKLA','SENTANI','WAENA'],
+  'SARMI':    ['ARMOPA','BONGGO','PANTAI TIMUR','SARMI'],
+  'ARSO':     ['ARSO','ARSO KOTA','SKAMTO','SENGGI','WARIS'],
+  'GENYEM':   ['GENYEM','LEREH','NIMBORAN','NIMBOKRANG']
+};
 
 // ── Mapping ULP akun → nilai kolom ULP di sheet GARDU ─────────
 var ULP_SHEET_MAP = {
@@ -1340,11 +1473,19 @@ document.addEventListener('DOMContentLoaded', function() {
 function doLogout() {
   if (!confirm('Yakin ingin logout?')) return;
   clearSession();
-  // Reset state
   adminSudahLogin = false; currentULP = '';
   allGardu = []; filteredDaftar = []; rekapSudahMuat = false;
   cacheClear();
+  // Bersihkan konten agar data sesi lama tidak terlihat di sesi baru
+  var rekapEl = document.getElementById('rekap-content');
+  if (rekapEl) rekapEl.innerHTML = '';
+  var listEl = document.getElementById('list-gardu');
+  if (listEl) listEl.innerHTML = '';
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('bottom-nav').style.display = 'flex';
   document.getElementById('modal-admin-panel').style.display = 'none';
+  var signoutBtn2 = document.getElementById('btn-signout');
+  if (signoutBtn2) signoutBtn2.style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
@@ -1363,6 +1504,10 @@ function onLoginSuccess(user) {
     badge.className = 'user-badge ' + roleClass;
   }
   if (uLabel) uLabel.textContent = user.nama || user.username;
+
+  // Tampilkan tombol Sign Out
+  var signoutBtn = document.getElementById('btn-signout');
+  if (signoutBtn) signoutBtn.style.display = '';
 
   // Atur icon kunci
   var lockBtn = document.getElementById('btn-admin-lock');
@@ -1633,7 +1778,7 @@ function hapusUser(username) {
 // ══════════════════════════════════════════════════════════════
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbyeYhfAk_Fgvf9lIKf4FXEDST-YZLdj9PTkWAlQIjSrzfAIWYQxOd3NZjxNRTnczRTSMQ/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbyI4a23LllaDco2mxaUVuGYXcP_IaaHa-UYQ08CAKViTtJHd9BFewQBe4XMeKx5s0AkMw/exec';
 
 // ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
 // Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
@@ -1932,7 +2077,10 @@ function bukaDetailGardu(noGardu){
   document.getElementById('detail-content').innerHTML = '<div class="loading"><div class="spinner"></div>Memuat detail...</div>';
   apiGet({action:'getDetailLengkap', noGardu:noGardu}, function(res){
     if(res.status!=='ok' || !res.data){
-      document.getElementById('detail-content').innerHTML = '<div class="alert alert-err">❌ '+(res.message||'Data gardu tidak ditemukan.')+'</div><button class="btn btn-outline" onclick="tutupDetail()">Kembali</button>';
+      document.getElementById('detail-content').innerHTML =
+        '<div class="alert alert-err" style="margin-bottom:var(--sp-sm);">❌ '+(res.message||'Data gardu tidak ditemukan.')+'</div>'+
+        '<button class="btn btn-outline" style="width:100%;" onclick="tutupDetail()">← Kembali ke Daftar</button>';
+      document.getElementById('bottom-nav').style.display = 'flex';
       return;
     }
     renderDetailGardu(res.data, res.riwayat||[]);
@@ -2556,9 +2704,13 @@ function onPeriodeChange() {
 
 function pilihFormat(fmt) {
   document.getElementById('export-format-selected').value = fmt;
-  var cA=document.getElementById('fmt-a-card'), cB=document.getElementById('fmt-b-card');
-  if(fmt==='A'){ cA.style.border='2px solid var(--pln-biru2)'; cA.style.background='#EBF4FF'; cB.style.border='2px solid var(--pln-border)'; cB.style.background=''; }
-  else         { cB.style.border='2px solid var(--pln-biru2)'; cB.style.background='#EBF4FF'; cA.style.border='2px solid var(--pln-border)'; cA.style.background=''; }
+  var cards = { A:'fmt-a-card', B:'fmt-b-card', C:'fmt-c-card', D:'fmt-d-card' };
+  Object.keys(cards).forEach(function(k) {
+    var el = document.getElementById(cards[k]);
+    if (!el) return;
+    if (k === fmt) { el.style.border='2px solid var(--pln-biru2)'; el.style.background='#EBF4FF'; }
+    else           { el.style.border='2px solid var(--pln-border)'; el.style.background=''; }
+  });
 }
 
 // Kembalikan object { bulan, tglDari, tglSampai, tahun, mode }
@@ -2663,8 +2815,10 @@ function doExport() {
       : rowsPeriode;
 
     var periodeLabel = getPeriodeLabel(periode);
-    if (fmt === 'A') generateXLSX(rows, periodeLabel, ulpFilter);
-    else             generatePrintHTML(rows, periodeLabel, ulpFilter);
+    if      (fmt === 'A') generateXLSX(rows, periodeLabel, ulpFilter);
+    else if (fmt === 'B') generatePrintHTML(rows, periodeLabel, ulpFilter);
+    else if (fmt === 'C') generateRekapStatusOperasi(rows, periodeLabel, ulpFilter);
+    else if (fmt === 'D') generateRekapStatusKepemilikan(rows, periodeLabel, ulpFilter);
     document.getElementById('modal-export').style.display = 'none';
   });
 }
@@ -3450,6 +3604,200 @@ function generatePrintHTML(rows, periodeLabel, ulpFilter) {
 }
 
 
+// ── Generate Rekap Gardu per Status Operasi (Format C) ────────
+function generateRekapStatusOperasi(rows, periodeLabel, ulpFilter) {
+  if (typeof ExcelJS === 'undefined') { alert('ExcelJS belum dimuat, coba refresh.'); return; }
+  var tglCetak = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  var ulpLabel = ulpFilter || 'Semua ULP';
+
+  // Bangun pivot: UNITUP → PENYULANG → { AKTIF, NON_AKTIF }
+  var pivot = {};
+  rows.forEach(function(r) {
+    var unitup = r.unitup || r.ulp || '—';
+    var penyulang = r.penyulang || '—';
+    var status = (r.status||'').toUpperCase();
+    if (!pivot[unitup]) pivot[unitup] = {};
+    if (!pivot[unitup][penyulang]) pivot[unitup][penyulang] = { AKTIF:0, NON:0 };
+    if (status === 'AKTIF') pivot[unitup][penyulang].AKTIF++;
+    else pivot[unitup][penyulang].NON++;
+  });
+
+  var wb = new ExcelJS.Workbook();
+  wb.creator = 'PLN UP3 Jayapura';
+  var ws = wb.addWorksheet('Rekap Status Operasi', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true }
+  });
+  ws.columns = [{width:16},{width:28},{width:12},{width:12},{width:12}];
+
+  // Header
+  ws.mergeCells('A1:E1');
+  ws.getCell('A1').value = 'PT. PLN (PERSERO) UP3 JAYAPURA — TABEL JUMLAH GARDU PER PENYULANG BERDASARKAN STATUS OPERASI';
+  ws.getCell('A1').style = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws.getRow(1).height = 24;
+
+  ws.mergeCells('A2:E2');
+  ws.getCell('A2').value = 'Periode: '+periodeLabel+' | ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
+  ws.getCell('A2').style = { font:{size:9,color:{argb:'FF555555'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF5A300'}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws.getRow(2).height = 16;
+
+  // Sub header STATUS_OPERASIONAL
+  ws.mergeCells('C3:E3');
+  ws.getCell('A3').value = 'UNITUP'; ws.getCell('B3').value = 'PENYULANG';
+  ws.getCell('C3').value = 'STATUS_OPERASIONAL';
+  ['A3','B3','C3'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  ws.getRow(3).height = 20;
+
+  ws.getCell('C4').value = 'AKTIF'; ws.getCell('D4').value = 'NON AKTIF'; ws.getCell('E4').value = 'Grand Total';
+  ['C4','D4','E4'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1565C0'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  ws.getRow(4).height = 18;
+
+  var rowNum = 5;
+  var C = { border:'FFBDBDBD', blue:'FF003B7B', alt:'FFF5F9FF' };
+  function brd() { var t={style:'thin',color:{argb:C.border}}; return {top:t,bottom:t,left:t,right:t}; }
+
+  Object.keys(pivot).sort().forEach(function(unitup) {
+    var penyulangList = Object.keys(pivot[unitup]).sort();
+    var unitupStartRow = rowNum;
+    var unitupTotal = {AKTIF:0, NON:0};
+
+    penyulangList.forEach(function(penyulang, pi) {
+      var d = pivot[unitup][penyulang];
+      var isAlt = pi % 2 === 1;
+      var bg = isAlt ? C.alt : 'FFFFFFFF';
+      ws.getCell(rowNum,1).value = pi === 0 ? unitup : '';
+      ws.getCell(rowNum,2).value = penyulang;
+      ws.getCell(rowNum,3).value = d.AKTIF || '';
+      ws.getCell(rowNum,4).value = d.NON || '';
+      ws.getCell(rowNum,5).value = d.AKTIF + d.NON;
+      [1,2,3,4,5].forEach(function(c){
+        ws.getCell(rowNum,c).style = { font:{size:9,name:'Calibri',bold:c<=2&&pi===0}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:c<=2?'left':'center',vertical:'middle'}, border:brd() };
+      });
+      ws.getRow(rowNum).height = 16;
+      unitupTotal.AKTIF += d.AKTIF; unitupTotal.NON += d.NON;
+      rowNum++;
+    });
+
+    // Merge unitup cells
+    if (penyulangList.length > 1) ws.mergeCells(unitupStartRow,1,rowNum-1,1);
+
+    // Total per unitup
+    ws.getCell(rowNum,1).value = unitup+' Total';
+    ws.mergeCells(rowNum,1,rowNum,2);
+    ws.getCell(rowNum,3).value = unitupTotal.AKTIF;
+    ws.getCell(rowNum,4).value = unitupTotal.NON;
+    ws.getCell(rowNum,5).value = unitupTotal.AKTIF + unitupTotal.NON;
+    [1,3,4,5].forEach(function(c){
+      ws.getCell(rowNum,c).style = { font:{bold:true,size:9,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1565C0'}}, alignment:{horizontal:c===1?'left':'center',vertical:'middle'}, border:brd() };
+    });
+    ws.getRow(rowNum).height = 18;
+    rowNum++;
+  });
+
+  wb.xlsx.writeBuffer().then(function(buf){
+    var blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'RekapStatusOperasi_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); },1000);
+  });
+}
+
+// ── Generate Rekap Gardu per Status Kepemilikan (Format D) ────
+function generateRekapStatusKepemilikan(rows, periodeLabel, ulpFilter) {
+  if (typeof ExcelJS === 'undefined') { alert('ExcelJS belum dimuat, coba refresh.'); return; }
+  var tglCetak = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  var ulpLabel = ulpFilter || 'Semua ULP';
+
+  // Bangun pivot: UNITUP → PENYULANG → { NON:0, PLN:0 }
+  var pivot = {};
+  rows.forEach(function(r) {
+    var unitup = r.unitup || r.ulp || '—';
+    var penyulang = r.penyulang || '—';
+    var kepemilikan = (r.kepemilikan||'').toUpperCase();
+    if (!pivot[unitup]) pivot[unitup] = {};
+    if (!pivot[unitup][penyulang]) pivot[unitup][penyulang] = { NON:0, PLN:0 };
+    if (kepemilikan === 'PLN') pivot[unitup][penyulang].PLN++;
+    else pivot[unitup][penyulang].NON++;
+  });
+
+  var wb = new ExcelJS.Workbook();
+  wb.creator = 'PLN UP3 Jayapura';
+  var ws = wb.addWorksheet('Rekap Status Kepemilikan', {
+    pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true }
+  });
+  ws.columns = [{width:16},{width:28},{width:12},{width:12},{width:12}];
+
+  ws.mergeCells('A1:E1');
+  ws.getCell('A1').value = 'PT. PLN (PERSERO) UP3 JAYAPURA — TABEL JUMLAH GARDU PER PENYULANG BERDASARKAN STATUS KEPEMILIKAN';
+  ws.getCell('A1').style = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws.getRow(1).height = 24;
+
+  ws.mergeCells('A2:E2');
+  ws.getCell('A2').value = 'Periode: '+periodeLabel+' | ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
+  ws.getCell('A2').style = { font:{size:9,color:{argb:'FF555555'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF5A300'}}, alignment:{horizontal:'center',vertical:'middle'} };
+  ws.getRow(2).height = 16;
+
+  ws.mergeCells('C3:E3');
+  ws.getCell('A3').value = 'UNITUP'; ws.getCell('B3').value = 'PENYULANG';
+  ws.getCell('C3').value = 'STATUS_KEPEMILIKAN';
+  ['A3','B3','C3'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  ws.getRow(3).height = 20;
+
+  ws.getCell('C4').value = 'NON'; ws.getCell('D4').value = 'PLN'; ws.getCell('E4').value = 'Grand Total';
+  ['C4','D4','E4'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  ws.getRow(4).height = 18;
+
+  var rowNum = 5;
+  var C = { border:'FFBDBDBD', alt:'FFF5FFF5' };
+  function brd() { var t={style:'thin',color:{argb:C.border}}; return {top:t,bottom:t,left:t,right:t}; }
+
+  Object.keys(pivot).sort().forEach(function(unitup) {
+    var penyulangList = Object.keys(pivot[unitup]).sort();
+    var unitupStartRow = rowNum;
+    var unitupTotal = {NON:0, PLN:0};
+
+    penyulangList.forEach(function(penyulang, pi) {
+      var d = pivot[unitup][penyulang];
+      var isAlt = pi % 2 === 1;
+      var bg = isAlt ? C.alt : 'FFFFFFFF';
+      ws.getCell(rowNum,1).value = pi === 0 ? unitup : '';
+      ws.getCell(rowNum,2).value = penyulang;
+      ws.getCell(rowNum,3).value = d.NON || '';
+      ws.getCell(rowNum,4).value = d.PLN || '';
+      ws.getCell(rowNum,5).value = d.NON + d.PLN;
+      [1,2,3,4,5].forEach(function(c){
+        ws.getCell(rowNum,c).style = { font:{size:9,name:'Calibri',bold:c<=2&&pi===0}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:c<=2?'left':'center',vertical:'middle'}, border:brd() };
+      });
+      ws.getRow(rowNum).height = 16;
+      unitupTotal.NON += d.NON; unitupTotal.PLN += d.PLN;
+      rowNum++;
+    });
+
+    if (penyulangList.length > 1) ws.mergeCells(unitupStartRow,1,rowNum-1,1);
+
+    ws.getCell(rowNum,1).value = unitup+' Total';
+    ws.mergeCells(rowNum,1,rowNum,2);
+    ws.getCell(rowNum,3).value = unitupTotal.NON;
+    ws.getCell(rowNum,4).value = unitupTotal.PLN;
+    ws.getCell(rowNum,5).value = unitupTotal.NON + unitupTotal.PLN;
+    [1,3,4,5].forEach(function(c){
+      ws.getCell(rowNum,c).style = { font:{bold:true,size:9,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:c===1?'left':'center',vertical:'middle'}, border:brd() };
+    });
+    ws.getRow(rowNum).height = 18;
+    rowNum++;
+  });
+
+  wb.xlsx.writeBuffer().then(function(buf){
+    var blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'RekapStatusKepemilikan_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); },1000);
+  });
+}
+
 function muatRekap() {
   var s = getSession();
   // [Fix Rekap] Kirim parameter ULP ke API jika login sebagai adminUlp
@@ -3864,32 +4212,77 @@ function bukaFormEditGardu() {
   document.getElementById('modal-edit-gardu').style.display = 'flex';
 }
 
+// Helper: isi dropdown penyulang berdasarkan ULP
+function onTambahULPChange() {
+  var ulp = (document.getElementById('f-ulp').value||'').trim().toUpperCase();
+  var sel = document.getElementById('f-penyulang');
+  var penyulangList = PENYULANG_MAP[ulp] || [];
+  sel.innerHTML = '<option value="">-- Pilih Penyulang --</option>' +
+    penyulangList.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+}
+
+function onEditULPChange() {
+  var ulp = (document.getElementById('ef-ulp').value||'').trim().toUpperCase();
+  var sel = document.getElementById('ef-penyulang');
+  var penyulangList = PENYULANG_MAP[ulp] || [];
+  sel.innerHTML = '<option value="">-- Pilih Penyulang --</option>' +
+    penyulangList.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+}
+
+// Helper: set dropdown ke nilai tertentu, fallback ke opsi bebas jika tidak ada
+function setSelectOrFallback(selectEl, val) {
+  if (!selectEl || !val) return;
+  var found = false;
+  for (var i = 0; i < selectEl.options.length; i++) {
+    if (selectEl.options[i].value.toUpperCase() === val.toUpperCase()) {
+      selectEl.value = selectEl.options[i].value;
+      found = true; break;
+    }
+  }
+  if (!found) {
+    var opt = document.createElement('option');
+    opt.value = val; opt.textContent = val;
+    selectEl.appendChild(opt);
+    selectEl.value = val;
+  }
+}
+
 function submitTambahGardu() {
   var noGardu = (document.getElementById('f-nogardu').value||'').trim().toUpperCase();
   var msgEl = document.getElementById('tambah-gardu-msg');
   var s = getSession();
 
-  // Untuk adminUlp, otomatis set ULP sesuai session
-  var ulpField = document.getElementById('f-ulp');
+  // Untuk adminulp, otomatis set ULP sesuai session
+  var ulpSel = document.getElementById('f-ulp');
   if (s && s.role === 'adminulp' && s.ulp) {
-    ulpField.value = s.ulp;
-    ulpField.readOnly = true;
+    var ulpSession = s.ulp.replace(/^ULP\s+/i,'').trim().toUpperCase();
+    setSelectOrFallback(ulpSel, ulpSession);
+    ulpSel.disabled = true;
   }
-  var ulp = (ulpField.value||'').trim().toUpperCase();
+  var ulp = (ulpSel.value||'').trim().toUpperCase();
+  var unitup = (document.getElementById('f-unitup').value||'').trim();
 
   if (!noGardu || !ulp) {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='NO GARDU dan ULP wajib diisi.'; return;
   }
-  // Kirim PIN sesuai ULP — adminUlp pakai PIN ULP, superadmin pakai PIN ADMIN
+
   var ulpKeyForPin = (s && s.role === 'adminulp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
   var pinToSend = ULP_PIN_MAP[ulpKeyForPin] || ULP_PIN_MAP['ADMIN'];
+
   apiGet({
     action:'tambahGardu', pin:pinToSend, noGardu:noGardu, ulp:ulp,
+    unitup: unitup,
     penyulang:(document.getElementById('f-penyulang').value||'').trim(),
     alamat:(document.getElementById('f-alamat').value||'').trim(),
     daya:(document.getElementById('f-daya').value||'').trim(),
-    fasa:(document.getElementById('f-fasa').value||'3')
+    tipe:(document.getElementById('f-tipe').value||'').trim(),
+    kepemilikan:(document.getElementById('f-kepemilikan').value||'').trim(),
+    statusOp:(document.getElementById('f-status-op').value||'AKTIF').trim(),
+    merek:(document.getElementById('f-merek').value||'').trim(),
+    lat:(document.getElementById('f-lat').value||'').trim(),
+    lng:(document.getElementById('f-lng').value||'').trim(),
+    keterangan:(document.getElementById('f-keterangan').value||'').trim()
   }, function(res){
     msgEl.style.display='block';
     if (res.status==='ok'){
@@ -3945,15 +4338,43 @@ function cariGarduUntukEdit() {
     }
     // Sembunyikan field ULP untuk adminUlp (tidak boleh ganti ULP)
     var ulpFieldWrap = document.getElementById('ef-ulp') && document.getElementById('ef-ulp').parentNode;
-    document.getElementById('ef-nogardu-lama').value  = g['NO_GARDU']||'';
-    document.getElementById('ef-nogardu-baru').value  = '';
-    document.getElementById('ef-ulp').value           = g['ULP']||'';
-    if (s && s.role === 'adminulp') document.getElementById('ef-ulp').readOnly = true;
-    else document.getElementById('ef-ulp').readOnly = false;
-    document.getElementById('ef-penyulang').value     = g['PENYULANG']||'';
-    document.getElementById('ef-alamat').value        = g['ALAMAT']||'';
-    document.getElementById('ef-daya').value          = g['KAPASITAS_KVA']||'';
-    document.getElementById('ef-status').value        = (g['STATUS_OPERASIONAL']||'AKTIF').toUpperCase();
+    document.getElementById('ef-nogardu-lama').value = g['NO_GARDU']||'';
+    document.getElementById('ef-nogardu-baru').value = '';
+    document.getElementById('ef-alamat').value = g['ALAMAT']||'';
+    document.getElementById('ef-daya').value = g['KAPASITAS_KVA']||'';
+    document.getElementById('ef-merek').value = g['MEREK_TRAFO']||'';
+    document.getElementById('ef-lat').value = g['LATITUDE']||'';
+    document.getElementById('ef-lng').value = g['LONGITUDE']||'';
+    document.getElementById('ef-keterangan').value = g['KETERANGAN']||'';
+
+    // Populate ULP dropdown
+    var ulpSel = document.getElementById('ef-ulp');
+    if (s && s.role === 'adminulp') {
+      ulpSel.disabled = true;
+    } else {
+      ulpSel.disabled = false;
+    }
+    var ulpVal = (g['ULP']||'').trim().toUpperCase();
+    setSelectOrFallback(ulpSel, ulpVal);
+
+    // Populate Penyulang dropdown berdasarkan ULP
+    onEditULPChange();
+    var penyulangSel = document.getElementById('ef-penyulang');
+    setSelectOrFallback(penyulangSel, g['PENYULANG']||'');
+
+    // Populate UNITUP
+    setSelectOrFallback(document.getElementById('ef-unitup'), g['UNITUP']||'');
+
+    // Populate Tipe
+    setSelectOrFallback(document.getElementById('ef-tipe'), g['TIPE']||'');
+
+    // Populate Kepemilikan
+    setSelectOrFallback(document.getElementById('ef-kepemilikan'), g['STATUS_KEPEMILIKAN']||'');
+
+    // Status operasional
+    var statusVal = (g['STATUS_OPERASIONAL']||'AKTIF').toUpperCase();
+    document.getElementById('ef-status').value = statusVal;
+
     document.getElementById('edit-gardu-fields').style.display = 'flex';
     var msgEl = document.getElementById('edit-gardu-msg');
     if (msgEl) msgEl.style.display = 'none';
@@ -3988,10 +4409,17 @@ function submitEditGardu() {
     action:'editGardu', pin:pinToSend, noGarduLama:noLama,
     noGarduBaru:(document.getElementById('ef-nogardu-baru').value||'').trim().toUpperCase(),
     ulp:ulpVal,
+    unitup:(document.getElementById('ef-unitup').value||'').trim(),
     penyulang:(document.getElementById('ef-penyulang').value||'').trim(),
     alamat:(document.getElementById('ef-alamat').value||'').trim(),
     daya:(document.getElementById('ef-daya').value||'').trim(),
-    status:(document.getElementById('ef-status').value||'AKTIF')
+    tipe:(document.getElementById('ef-tipe').value||'').trim(),
+    kepemilikan:(document.getElementById('ef-kepemilikan').value||'').trim(),
+    status:(document.getElementById('ef-status').value||'AKTIF'),
+    merek:(document.getElementById('ef-merek').value||'').trim(),
+    lat:(document.getElementById('ef-lat').value||'').trim(),
+    lng:(document.getElementById('ef-lng').value||'').trim(),
+    keterangan:(document.getElementById('ef-keterangan').value||'').trim()
   }, function(res){
     msgEl.style.display='block';
     if (res.status==='ok'){
