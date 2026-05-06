@@ -1107,12 +1107,12 @@ body{
       <div style="font-weight:700;margin-bottom:var(--sp-sm);" id="user-form-title">Tambah User</div>
       <input type="hidden" id="uf-edit-idx" value="">
       <div class="form-group"><label class="form-label">Username *</label><input id="uf-username" class="form-input" placeholder="Contoh: petugas_abe1" autocorrect="off" autocapitalize="none"></div>
-      <div class="form-group"><label class="form-label">Password <span id="uf-pass-hint" style="font-weight:400;opacity:.6;">(kosongkan jika tidak diganti)</span></label><input id="uf-password" class="form-input" type="password" placeholder="Min 4 karakter — kosongkan jika tidak diganti"></div>
+      <div class="form-group"><label class="form-label">Password *</label><input id="uf-password" class="form-input" type="password" placeholder="Min 4 karakter"></div>
       <div class="form-group"><label class="form-label">Nama Lengkap *</label><input id="uf-nama" class="form-input" placeholder="Nama petugas"></div>
       <div class="form-group"><label class="form-label">Role *</label>
         <select id="uf-role" class="form-select" onchange="onUFRoleChange()">
           <option value="petugas">Petugas</option>
-          <option value="adminUlp">Admin ULP</option>
+          <option value="adminulp">Admin ULP</option>
           <option value="superadmin">Super Admin</option>
         </select>
       </div>
@@ -1234,7 +1234,7 @@ body{
 //  [AUTH v2] SISTEM LOGIN SERVER-SIDE
 //  Password disimpan di Google Spreadsheet B (rahasia),
 //  BUKAN di file HTML ini. HTML ini tidak mengandung password apapun.
-//  Role: superadmin | adminUlp | petugas
+//  Role: superadmin | adminulp | petugas
 //  Storage: sessionStorage (session token sementara)
 // ══════════════════════════════════════════════════════════════
 
@@ -1262,20 +1262,24 @@ function getSession() {
 function setSession(s) { sessionStorage.setItem('plnSession', JSON.stringify(s)); }
 function clearSession() { sessionStorage.removeItem('plnSession'); }
 
-// Toggle show/hide password
+// Toggle show/hide password di halaman login
 function toggleShowPassword() {
   var inp = document.getElementById('login-password');
   var btn = document.getElementById('btn-toggle-pass');
-  if (inp.type === 'password') { inp.type = 'text'; if (btn) btn.textContent = '🙈'; }
-  else { inp.type = 'password'; if (btn) btn.textContent = '👁️'; }
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    if (btn) btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    if (btn) btn.textContent = '👁️';
+  }
 }
 
-// ── Login — kirim ke server, tidak ada password di HTML ────────
+// Fungsi login
 function doLogin() {
   var username = (document.getElementById('login-username').value || '').trim().toLowerCase();
   var password = (document.getElementById('login-password').value || '').trim();
-  var errEl    = document.getElementById('login-err');
-  var btnLogin = document.querySelector('.login-btn');
+  var errEl = document.getElementById('login-err');
   errEl.style.display = 'none';
 
   if (!username || !password) {
@@ -1284,9 +1288,9 @@ function doLogin() {
   }
 
   // Tampilkan loading
+  var btnLogin = document.querySelector('.login-btn');
   if (btnLogin) { btnLogin.textContent = 'Memverifikasi...'; btnLogin.disabled = true; }
 
-  // Kirim ke Apps Script untuk diverifikasi
   var params = { action: 'loginUser', username: username, password: password };
   var url = API_URL + '?' + Object.keys(params).map(function(k){
     return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
@@ -1336,6 +1340,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function doLogout() {
   if (!confirm('Yakin ingin logout?')) return;
   clearSession();
+  // Reset state
   adminSudahLogin = false; currentULP = '';
   allGardu = []; filteredDaftar = []; rekapSudahMuat = false;
   cacheClear();
@@ -1352,8 +1357,8 @@ function onLoginSuccess(user) {
   var badge = document.getElementById('topbar-user-badge');
   var uLabel = document.getElementById('topbar-username-label');
   if (badge) {
-    var roleLabel = user.role === 'superadmin' ? 'SUPER ADMIN' : user.role === 'adminUlp' ? 'ADMIN ULP' : 'PETUGAS';
-    var roleClass = user.role === 'superadmin' ? 'badge-superadmin' : user.role === 'adminUlp' ? 'badge-adminulp' : 'badge-petugas';
+    var roleLabel = user.role === 'superadmin' ? 'SUPER ADMIN' : user.role === 'adminulp' ? 'ADMIN ULP' : 'PETUGAS';
+    var roleClass = user.role === 'superadmin' ? 'badge-superadmin' : user.role === 'adminulp' ? 'badge-adminulp' : 'badge-petugas';
     badge.textContent = roleLabel;
     badge.className = 'user-badge ' + roleClass;
   }
@@ -1363,7 +1368,7 @@ function onLoginSuccess(user) {
   var lockBtn = document.getElementById('btn-admin-lock');
   if (lockBtn) {
     if (user.role === 'superadmin') { lockBtn.style.color = 'var(--pln-kuning)'; lockBtn.title = 'Super Admin'; }
-    else if (user.role === 'adminUlp') { lockBtn.style.color = '#FCD34D'; lockBtn.title = 'Admin ULP: '+user.ulp; }
+    else if (user.role === 'adminulp') { lockBtn.style.color = '#FCD34D'; lockBtn.title = 'Admin ULP: '+user.ulp; }
     else { lockBtn.style.color = 'rgba(255,255,255,.45)'; lockBtn.title = 'Petugas'; }
   }
 
@@ -1374,7 +1379,7 @@ function onLoginSuccess(user) {
   // Set state admin & ULP
   if (user.role !== 'superadmin' && user.ulp) {
     currentULP = user.ulp;
-    adminSudahLogin = (user.role === 'adminUlp');
+    adminSudahLogin = (user.role === 'adminulp');
   } else {
     currentULP = '';
     adminSudahLogin = (user.role === 'superadmin');
@@ -1497,7 +1502,7 @@ function _tampilkanPanelAdmin(s) {
   document.getElementById('modal-admin-panel').style.display = 'flex';
 }
 
-// ── Manajemen User — dikelola via server (Spreadsheet B) ──────
+// ── Manajemen User (Super Admin) ──────────────────────────────
 function bukaModalUser() {
   renderUserList();
   tutupFormUser();
@@ -1517,14 +1522,14 @@ function renderUserList() {
     wrap._userCache = users;
     var html = '<div class="user-table-row user-table-head"><span>User</span><span>Role / ULP</span><span></span><span></span></div>';
     users.forEach(function(u, i) {
-      var roleStr = u.role === 'superadmin' ? '⭐ Super Admin' : u.role === 'adminUlp' ? '🟢 Admin ULP' : '🔵 Petugas';
+      var roleStr = u.role === 'superadmin' ? '⭐ Super Admin' : u.role === 'adminulp' ? '🟢 Admin ULP' : '🔵 Petugas';
       var ulpStr  = u.ulp ? ('<br><span style="opacity:.6;font-size:9px;">'+esc(u.ulp)+'</span>') : '';
       var canDel  = u.role !== 'superadmin';
       html += '<div class="user-table-row">';
       html += '<span><b>'+esc(u.username)+'</b><br><span style="opacity:.6;font-size:9px;">'+esc(u.nama)+'</span></span>';
       html += '<span>'+roleStr+ulpStr+'</span>';
       html += '<button class="user-action-btn btn-edit-user" onclick="editUser('+i+',null)">✏️ Edit</button>';
-      html += canDel ? '<button class="user-action-btn btn-del-user" onclick="hapusUser(''+esc(u.username)+'')">🗑️</button>' : '<span></span>';
+      html += canDel ? '<button class="user-action-btn btn-del-user" onclick="hapusUser(\''+esc(u.username)+'\')">🗑️</button>' : '<span></span>';
       html += '</div>';
     });
     wrap.innerHTML = html;
@@ -3449,7 +3454,7 @@ function muatRekap() {
   var s = getSession();
   // [Fix Rekap] Kirim parameter ULP ke API jika login sebagai adminUlp
   var params = { action:'getRekap' };
-  if (s && s.role === 'adminUlp' && s.ulp) {
+  if (s && s.role === 'adminulp' && s.ulp) {
     var sheetVal = ulpAkunToSheet(s.ulp);
     if (sheetVal) params.ulp = sheetVal;
   }
@@ -3466,7 +3471,7 @@ function muatRekap() {
 function renderRekap(d) {
   var html = '';
   var s = getSession();
-  var isAdminUlp = s && s.role === 'adminUlp' && s.ulp;
+  var isAdminUlp = s && s.role === 'adminulp' && s.ulp;
 
   // [Fix Rekap] Tampilkan label ULP jika login sebagai adminUlp
   if (isAdminUlp) {
@@ -3866,7 +3871,7 @@ function submitTambahGardu() {
 
   // Untuk adminUlp, otomatis set ULP sesuai session
   var ulpField = document.getElementById('f-ulp');
-  if (s && s.role === 'adminUlp' && s.ulp) {
+  if (s && s.role === 'adminulp' && s.ulp) {
     ulpField.value = s.ulp;
     ulpField.readOnly = true;
   }
@@ -3877,7 +3882,7 @@ function submitTambahGardu() {
     msgEl.textContent='NO GARDU dan ULP wajib diisi.'; return;
   }
   // Kirim PIN sesuai ULP — adminUlp pakai PIN ULP, superadmin pakai PIN ADMIN
-  var ulpKeyForPin = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var ulpKeyForPin = (s && s.role === 'adminulp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
   var pinToSend = ULP_PIN_MAP[ulpKeyForPin] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'tambahGardu', pin:pinToSend, noGardu:noGardu, ulp:ulp,
@@ -3902,7 +3907,7 @@ function cariGarduUntukEdit() {
 
   // [Fix Prefix] Validasi prefix NO_GARDU sesuai ULP login sebelum query ke server
   var s = getSession();
-  if (s && s.role === 'adminUlp' && s.ulp) {
+  if (s && s.role === 'adminulp' && s.ulp) {
     var ulpKey = String(s.ulp).trim().toUpperCase();
     var prefixArr = (ULP_SHEET_MAP[ulpKey] && ULP_SHEET_MAP[ulpKey].prefix) ? ULP_SHEET_MAP[ulpKey].prefix : [];
     if (prefixArr.length > 0) {
@@ -3927,7 +3932,7 @@ function cariGarduUntukEdit() {
     var g = res.data;
     // [Fix v33] adminUlp hanya bisa edit gardu ULP-nya sendiri
     var s = getSession();
-    if (s && s.role === 'adminUlp' && normalizeULP(g['ULP']||'') !== normalizeULP(ulpAkunToSheet(s.ulp))) {
+    if (s && s.role === 'adminulp' && normalizeULP(g['ULP']||'') !== normalizeULP(ulpAkunToSheet(s.ulp))) {
       var msgEl = document.getElementById('edit-gardu-msg');
       if (msgEl) {
         msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
@@ -3943,7 +3948,7 @@ function cariGarduUntukEdit() {
     document.getElementById('ef-nogardu-lama').value  = g['NO_GARDU']||'';
     document.getElementById('ef-nogardu-baru').value  = '';
     document.getElementById('ef-ulp').value           = g['ULP']||'';
-    if (s && s.role === 'adminUlp') document.getElementById('ef-ulp').readOnly = true;
+    if (s && s.role === 'adminulp') document.getElementById('ef-ulp').readOnly = true;
     else document.getElementById('ef-ulp').readOnly = false;
     document.getElementById('ef-penyulang').value     = g['PENYULANG']||'';
     document.getElementById('ef-alamat').value        = g['ALAMAT']||'';
@@ -3963,7 +3968,7 @@ function submitEditGardu() {
 
   // adminUlp tidak boleh mengubah ULP ke ULP lain
   var ulpVal = (document.getElementById('ef-ulp').value||'').trim().toUpperCase();
-  if (s && s.role === 'adminUlp' && normalizeULP(ulpVal) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
+  if (s && s.role === 'adminulp' && normalizeULP(ulpVal) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='Anda tidak bisa mengubah ULP gardu ke ULP lain.'; return;
   }
@@ -3977,7 +3982,7 @@ function submitEditGardu() {
     'Perubahan ini akan tersimpan ke database.\nLanjutkan?';
   if (!confirm(konfirmasiMsg)) return;
 
-  var ulpKeyForPin2 = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var ulpKeyForPin2 = (s && s.role === 'adminulp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
   var pinToSend = ULP_PIN_MAP[ulpKeyForPin2] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'editGardu', pin:pinToSend, noGarduLama:noLama,
@@ -4160,7 +4165,7 @@ function cekPinLogin() {
   var mode = document.getElementById('modal-admin-pin').getAttribute('data-mode') || 'panel';
 
   // Mode 'panel': PIN digunakan untuk membuka menu admin (adminUlp)
-  if (mode === 'panel' && s && s.role === 'adminUlp') {
+  if (mode === 'panel' && s && s.role === 'adminulp') {
     var ulpKey = String(s.ulp||'').trim().toUpperCase();
     var pinBenar = ULP_PIN_MAP[ulpKey] || ULP_PIN_MAP['ADMIN'];
     if (pinBuffer === pinBenar || pinBuffer === ULP_PIN_MAP['ADMIN']) {
