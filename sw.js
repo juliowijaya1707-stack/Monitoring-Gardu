@@ -1,14 +1,15 @@
 // ============================================================
-//  sw.js — Service Worker PWA  v8.1 (FIXED)
+//  sw.js — Service Worker PWA  v8
 //  PLN UP3 Jayapura — Monitoring Gardu
 //
-//  Fix v8.1:
-//  - kirimSatu() diubah dari POST ke GET agar kompatibel
-//    dengan Apps Script yang hanya punya doGet()
+//  Perubahan v8:
+//  - kirimAntrianInspeksi() pakai fetch POST + Content-Type: text/plain
+//    agar lolos CORS Apps Script tanpa preflight
+//  - Foto ikut dalam satu payload (tidak terpisah lagi)
 //  - Notifikasi SYNC_SUCCESS dikirim ke semua tab
 // ============================================================
 
-var CACHE_NAME  = 'gardu-pln-v8';
+var CACHE_NAME  = 'gardu-pln-v9';
 var DB_NAME     = 'gardu-pln-db';
 var DB_VERSION  = 1;
 var QUEUE_STORE = 'gardu-sync-queue';
@@ -45,7 +46,7 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
   var url = event.request.url;
 
-  // POST ke API jangan intercept
+  // POST ke API jangan intercept (ditangani IndexedDB + sync)
   if (event.request.method === 'POST') return;
 
   // GET ke Apps Script API → network-first, fallback cache
@@ -100,6 +101,7 @@ function kirimAntrianInspeksi() {
   return bukaDB().then(function(db) {
     return getAllQueue(db).then(function(items) {
       if (!items || !items.length) return;
+      // Kirim satu per satu berurutan agar tidak membebani Apps Script
       return items.reduce(function(chain, item) {
         return chain.then(function() { return kirimSatu(db, item); });
       }, Promise.resolve());
@@ -107,38 +109,36 @@ function kirimAntrianInspeksi() {
   });
 }
 
-// [FIX v8.1] Kirim via GET (query string) agar kompatibel dengan doGet() Apps Script
 function kirimSatu(db, item) {
-  var payload = item.payload;
-  var params = Object.keys(payload).map(function(k) {
-    return encodeURIComponent(k) + '=' + encodeURIComponent(
-      typeof payload[k] === 'object' ? JSON.stringify(payload[k]) : String(payload[k])
-    );
-  }).join('&');
-  var url = item.apiUrl + (item.apiUrl.indexOf('?') > -1 ? '&' : '?') + params;
-
-  return fetch(url, { method: 'GET' })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
-      if (res.status === 'ok') {
-        return hapusQueue(db, item.id).then(function() {
-          return self.clients.matchAll({ includeUncontrolled: true }).then(function(clients) {
-            clients.forEach(function(c) {
-              c.postMessage({
-                type:    'SYNC_SUCCESS',
-                idGardu: payload.idGardu,
-                message: '☁️ Sinkronisasi ' + (payload.idGardu || 'data') + ' berhasil dikirim ke server.'
-              });
+  return fetch(item.apiUrl, {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body:    JSON.stringify(item.payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.status === 'ok') {
+      return hapusQueue(db, item.id).then(function() {
+        return self.clients.matchAll({ includeUncontrolled: true }).then(function(clients) {
+          clients.forEach(function(c) {
+            c.postMessage({
+              type:    'SYNC_SUCCESS',
+              idGardu: item.payload.idGardu,
+              message: '☁️ Inspeksi ' + item.payload.idGardu + ' berhasil dikirim ke server' +
+                       (item.payload.foto && item.payload.foto.length
+                         ? ' beserta ' + item.payload.foto.length + ' foto.'
+                         : '.')
             });
           });
         });
-      } else {
-        console.log('[SW] Server menolak:', res.message);
-      }
-    })
-    .catch(function(err) {
-      console.log('[SW] Gagal kirim (akan retry):', err.message);
-    });
+      });
+    } else {
+      console.log('[SW] Server menolak:', res.message);
+    }
+  })
+  .catch(function(err) {
+    console.log('[SW] Gagal kirim (akan retry):', err.message);
+  });
 }
 
 // ── IndexedDB helpers ─────────────────────────────────────────

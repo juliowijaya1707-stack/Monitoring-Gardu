@@ -1529,7 +1529,7 @@ function renderUserList() {
       html += '<span><b>'+esc(u.username)+'</b><br><span style="opacity:.6;font-size:9px;">'+esc(u.nama)+'</span></span>';
       html += '<span>'+roleStr+ulpStr+'</span>';
       html += '<button class="user-action-btn btn-edit-user" onclick="editUser('+i+',null)">✏️ Edit</button>';
-      html += canDel ? '<button class="user-action-btn btn-del-user" onclick="hapusUser(\''+esc(u.username)+'\')">🗑️</button>' : '<span></span>';
+      html += canDel ? '<button class="user-action-btn btn-del-user" onclick="hapusUser(\'' + esc(u.username) + '\')">🗑️</button>' : '<span></span>';
       html += '</div>';
     });
     wrap.innerHTML = html;
