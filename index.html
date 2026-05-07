@@ -1143,10 +1143,15 @@ body{
       <button onclick="document.getElementById('modal-tambah-gardu').style.display='none'" style="background:var(--pln-bg);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-sm);">
-      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNIT UP *</label>
-        <select id="f-unitup" class="form-input" style="text-transform:uppercase;">
-          <option value="">-- Pilih Unit UP --</option>
-          <option value="UP3.7614">UP3.7614 — UP3 JAYAPURA</option>
+      <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNITUP *</label>
+        <select id="f-unitup" class="form-input">
+          <option value="">-- Pilih UNITUP --</option>
+          <option value="42110">42110 (ABEPURA)</option>
+          <option value="42120">42120 (SENTANI)</option>
+          <option value="42130">42130 (GENYEM)</option>
+          <option value="42140">42140 (SARMI)</option>
+          <option value="42160">42160 (ARSO)</option>
+          <option value="42180">42180 (JAYAPURA)</option>
         </select></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP *</label>
         <select id="f-ulp" class="form-input" onchange="onTambahULPChange()" style="text-transform:uppercase;">
@@ -1171,17 +1176,19 @@ body{
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">TIPE</label>
         <select id="f-tipe" class="form-input">
           <option value="">-- Pilih Tipe --</option>
-          <option value="GD">GD (Gardu Distribusi)</option>
-          <option value="GP">GP (Gardu Portal)</option>
-          <option value="GH">GH (Gardu Hubung)</option>
-          <option value="GT">GT (Gardu Tiang)</option>
-          <option value="GG">GG (Gardu Gedung)</option>
+          <option value="BETON">BETON</option>
+          <option value="CANTOL">CANTOL</option>
+          <option value="KIOS">KIOS</option>
+          <option value="KOSONG">KOSONG</option>
+          <option value="PORTAL">PORTAL</option>
         </select></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS KEPEMILIKAN</label>
         <select id="f-kepemilikan" class="form-input">
           <option value="">-- Pilih --</option>
           <option value="PLN">PLN</option>
           <option value="NON">NON PLN</option>
+          <option value="KOSONG">KOSONG</option>
+          <option value="BELUM BERNOMOR">BELUM BERNOMOR</option>
         </select></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS OPERASIONAL</label>
         <select id="f-status-op" class="form-input">
@@ -1189,7 +1196,7 @@ body{
           <option value="NON-AKTIF">NON-AKTIF</option>
         </select></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">MEREK TRAFO</label>
-        <input id="f-merek" class="form-input" placeholder="Contoh: UNINDO, SCHNEIDER, ABB"></div>
+        <input id="f-merek" class="form-input" placeholder="Contoh: WELTRAF, UNINDO, B. DJAJA" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LATITUDE</label>
         <input id="f-lat" class="form-input" type="number" step="any" placeholder="Contoh: -2.5916"></div>
       <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LONGITUDE</label>
@@ -1214,10 +1221,16 @@ body{
     </div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-sm);">
       <div>
-        <label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">CARI GARDU *</label>
-        <div style="display:flex;gap:8px;">
-          <input id="ef-nogardu-cari" class="form-input" placeholder="Ketik NO GARDU lalu tekan Cari" style="text-transform:uppercase;flex:1;">
-          <button class="btn btn-outline" onclick="cariGarduUntukEdit()" style="flex-shrink:0;">🔍 Cari</button>
+        <label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;display:block;margin-bottom:6px;">CARI GARDU *</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="ef-nogardu-cari" class="form-input" placeholder="Ketik NO GARDU lalu tekan Cari"
+            style="text-transform:uppercase;flex:1;min-width:0;"
+            onkeydown="if(event.key==='Enter') cariGarduUntukEdit()">
+          <button class="btn btn-blue" onclick="cariGarduUntukEdit()"
+            style="flex-shrink:0;white-space:nowrap;padding:0 16px;height:42px;">🔍 Cari</button>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--pln-text3);margin-top:4px;">
+          Contoh: ABE001, JPR042, SEN015
         </div>
       </div>
       <div id="edit-gardu-msg" style="display:none;padding:10px;border-radius:var(--radius-sm);font-size:var(--fs-xs);"></div>
@@ -1228,10 +1241,15 @@ body{
         </div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">NO GARDU BARU</label>
           <input id="ef-nogardu-baru" class="form-input" placeholder="Kosongkan jika tidak berubah" style="text-transform:uppercase;"></div>
-        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNIT UP</label>
+        <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">UNITUP</label>
           <select id="ef-unitup" class="form-input">
-            <option value="">-- Pilih Unit UP --</option>
-            <option value="UP3.7614">UP3.7614 — UP3 JAYAPURA</option>
+            <option value="">-- Pilih UNITUP --</option>
+            <option value="42110">42110 (ABEPURA)</option>
+            <option value="42120">42120 (SENTANI)</option>
+            <option value="42130">42130 (GENYEM)</option>
+            <option value="42140">42140 (SARMI)</option>
+            <option value="42160">42160 (ARSO)</option>
+            <option value="42180">42180 (JAYAPURA)</option>
           </select></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">ULP</label>
           <select id="ef-ulp" class="form-input" onchange="onEditULPChange()">
@@ -1254,17 +1272,19 @@ body{
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">TIPE</label>
           <select id="ef-tipe" class="form-input">
             <option value="">-- Pilih Tipe --</option>
-            <option value="GD">GD (Gardu Distribusi)</option>
-            <option value="GP">GP (Gardu Portal)</option>
-            <option value="GH">GH (Gardu Hubung)</option>
-            <option value="GT">GT (Gardu Tiang)</option>
-            <option value="GG">GG (Gardu Gedung)</option>
+            <option value="BETON">BETON</option>
+            <option value="CANTOL">CANTOL</option>
+            <option value="KIOS">KIOS</option>
+            <option value="KOSONG">KOSONG</option>
+            <option value="PORTAL">PORTAL</option>
           </select></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS KEPEMILIKAN</label>
           <select id="ef-kepemilikan" class="form-input">
             <option value="">-- Pilih --</option>
             <option value="PLN">PLN</option>
             <option value="NON">NON PLN</option>
+            <option value="KOSONG">KOSONG</option>
+            <option value="BELUM BERNOMOR">BELUM BERNOMOR</option>
           </select></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">STATUS OPERASIONAL</label>
           <select id="ef-status" class="form-input">
@@ -1272,7 +1292,7 @@ body{
             <option value="NON-AKTIF">NON-AKTIF</option>
           </select></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">MEREK TRAFO</label>
-          <input id="ef-merek" class="form-input" placeholder="Contoh: UNINDO, SCHNEIDER, ABB"></div>
+          <input id="ef-merek" class="form-input" placeholder="Contoh: WELTRAF, UNINDO, B. DJAJA" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LATITUDE</label>
           <input id="ef-lat" class="form-input" type="number" step="any" placeholder="Contoh: -2.5916"></div>
         <div><label style="font-size:var(--fs-xs);color:var(--pln-text2);font-weight:600;">LONGITUDE</label>
@@ -1351,24 +1371,50 @@ body{
 // ══════════════════════════════════════════════════════════════
 
 // ── Data UNITUP (kode unit sesuai gambar) ────────────────────
-var UNITUP_LIST = [
-  { kode: 'UP3.7614', nama: 'UP3 JAYAPURA' }
-];
+// ── UNITUP — kode unit sesuai kolom UNITUP di spreadsheet ──
+// Format: nilai yang tersimpan di kolom UNITUP spreadsheet (tanpa nama ULP)
+var UNITUP_MAP = {
+  '42110': 'ABEPURA',
+  '42120': 'SENTANI',
+  '42130': 'GENYEM',
+  '42140': 'SARMI',
+  '42160': 'ARSO',
+  '42180': 'JAYAPURA'
+};
+var UNITUP_CODES = ['42110','42120','42130','42140','42160','42180'];
 
 // ── Daftar ULP (untuk dropdown) ────────────────────────────
 var ULP_LIST = [
   'ABEPURA', 'JAYAPURA', 'SENTANI', 'SARMI', 'ARSO', 'GENYEM'
 ];
 
-// ── Daftar Penyulang per ULP (untuk dropdown) ──────────────
-// Tambah/sesuaikan dengan data aktual di spreadsheet
+// ── Daftar Penyulang per ULP — diambil dari data spreadsheet ─
+// Sumber: sheet GARDU kolom PENYULANG, dikelompokkan per ULP
 var PENYULANG_MAP = {
-  'ABEPURA':  ['ANGGREK','BOUGENVILLE','DAHLIA','DPRD KOTA','EDELWAISS','EVAKUASI DAYA 2 ABE','KOYA','KOYA BARAT','KOYA GAPURA','KOYA TIMUR','OTONOM','PLBN','SAGA MALL','SAKURA','SOKA','TANAH HITAM','TERATAI'],
-  'JAYAPURA': ['BANDARA','BATE','ENTROP','HAMADI','IFAR GUNUNG','KASWARI','KELAPA DUA','KOTARAJA','NUMBAY','TRIKORA'],
-  'SENTANI':  ['ASEI','HARAPAN','IFAR','KEMIRI','KONYA','NOLOKLA','SENTANI','WAENA'],
-  'SARMI':    ['ARMOPA','BONGGO','PANTAI TIMUR','SARMI'],
-  'ARSO':     ['ARSO','ARSO KOTA','SKAMTO','SENGGI','WARIS'],
-  'GENYEM':   ['GENYEM','LEREH','NIMBORAN','NIMBOKRANG']
+  'ABEPURA':  [
+    'ANGGREK','BOUGENVILLE','DAHLIA','DPRD KOTA','EDELWAISS',
+    'EVAKUASI DAYA 2 ABE','KOYA','KOYA BARAT','KOYA GAPURA',
+    'KOYA TIMUR','OTONOM','PLBN','SAGA MALL','SAKURA',
+    'SOKA','TANAH HITAM','TERATAI'
+  ],
+  'JAYAPURA': [
+    'BANDARA','BATE','ENTROP','HAMADI','IFAR GUNUNG',
+    'KASWARI','KELAPA DUA','KOTARAJA','NUMBAY','TRIKORA',
+    'APO','DOK II','DOCK VIII','ANGKASA','PERUMNAS III'
+  ],
+  'SENTANI':  [
+    'ASEI','DOSAY','HARAPAN','IFAR','KEMIRI','KONYA',
+    'NOLOKLA','SENTANI','WAENA','YOKA','KHAGEUW'
+  ],
+  'SARMI':    [
+    'ARMOPA','BONGGO','PANTAI TIMUR','SARMI','PTM'
+  ],
+  'ARSO':     [
+    'ARSO','ARSO KOTA','SKAMTO','SENGGI','WARIS','ARSO PIR'
+  ],
+  'GENYEM':   [
+    'GENYEM','LEREH','NIMBORAN','NIMBOKRANG','YAPSI'
+  ]
 };
 
 // ── Mapping ULP akun → nilai kolom ULP di sheet GARDU ─────────
@@ -1778,7 +1824,7 @@ function hapusUser(username) {
 // ══════════════════════════════════════════════════════════════
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbyI4a23LllaDco2mxaUVuGYXcP_IaaHa-UYQ08CAKViTtJHd9BFewQBe4XMeKx5s0AkMw/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbxHzRxpbfQaKDBbWaDQryEIAHcYJTtYfnvvLcX1aNAUY9PNhOUInTPmn6G7nfa8ixI5gQ/exec';
 
 // ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
 // Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
@@ -4199,6 +4245,41 @@ function tutupModalAdmin() {
 
 function bukaFormTambahGardu() {
   document.getElementById('modal-admin-panel').style.display = 'none';
+  // Reset form
+  ['f-unitup','f-ulp','f-penyulang','f-tipe','f-kepemilikan'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['f-nogardu','f-alamat','f-daya','f-merek','f-lat','f-lng','f-keterangan'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var statusOp = document.getElementById('f-status-op');
+  if (statusOp) statusOp.value = 'AKTIF';
+  var msgEl = document.getElementById('tambah-gardu-msg');
+  if (msgEl) msgEl.style.display = 'none';
+
+  // Jika adminulp — otomatis set ULP dan UNITUP, lock dropdown
+  var s = getSession();
+  if (s && s.role === 'adminulp' && s.ulp) {
+    var ulpSession = s.ulp.replace(/^ULP\s+/i,'').trim().toUpperCase();
+    var ulpSel = document.getElementById('f-ulp');
+    if (ulpSel) { setSelectOrFallback(ulpSel, ulpSession); ulpSel.disabled = true; }
+    var unitupSel = document.getElementById('f-unitup');
+    if (unitupSel && ULP_TO_UNITUP[ulpSession]) {
+      unitupSel.value = ULP_TO_UNITUP[ulpSession];
+      unitupSel.disabled = true;
+    }
+    onTambahULPChange();
+  } else {
+    var ulpSel2 = document.getElementById('f-ulp');
+    if (ulpSel2) ulpSel2.disabled = false;
+    var unitupSel2 = document.getElementById('f-unitup');
+    if (unitupSel2) unitupSel2.disabled = false;
+    // Reset penyulang dropdown
+    var pnSel = document.getElementById('f-penyulang');
+    if (pnSel) pnSel.innerHTML = '<option value="">-- Pilih ULP dulu --</option>';
+  }
   document.getElementById('modal-tambah-gardu').style.display = 'flex';
 }
 
@@ -4213,8 +4294,22 @@ function bukaFormEditGardu() {
 }
 
 // Helper: isi dropdown penyulang berdasarkan ULP
+// Map ULP → kode UNITUP untuk auto-fill
+var ULP_TO_UNITUP = {
+  'ABEPURA':  '42110',
+  'SENTANI':  '42120',
+  'GENYEM':   '42130',
+  'SARMI':    '42140',
+  'ARSO':     '42160',
+  'JAYAPURA': '42180'
+};
+
 function onTambahULPChange() {
   var ulp = (document.getElementById('f-ulp').value||'').trim().toUpperCase();
+  // Auto-fill UNITUP sesuai ULP
+  var unitupSel = document.getElementById('f-unitup');
+  if (unitupSel && ULP_TO_UNITUP[ulp]) unitupSel.value = ULP_TO_UNITUP[ulp];
+  // Update penyulang dropdown
   var sel = document.getElementById('f-penyulang');
   var penyulangList = PENYULANG_MAP[ulp] || [];
   sel.innerHTML = '<option value="">-- Pilih Penyulang --</option>' +
@@ -4223,6 +4318,10 @@ function onTambahULPChange() {
 
 function onEditULPChange() {
   var ulp = (document.getElementById('ef-ulp').value||'').trim().toUpperCase();
+  // Auto-fill UNITUP sesuai ULP
+  var unitupSel = document.getElementById('ef-unitup');
+  if (unitupSel && ULP_TO_UNITUP[ulp] && !unitupSel.value) unitupSel.value = ULP_TO_UNITUP[ulp];
+  // Update penyulang dropdown
   var sel = document.getElementById('ef-penyulang');
   var penyulangList = PENYULANG_MAP[ulp] || [];
   sel.innerHTML = '<option value="">-- Pilih Penyulang --</option>' +
@@ -4298,27 +4397,9 @@ function cariGarduUntukEdit() {
   var noGardu = (document.getElementById('ef-nogardu-cari').value||'').trim().toUpperCase();
   if (!noGardu) { alert('Ketik NO GARDU terlebih dahulu.'); return; }
 
-  // [Fix Prefix] Validasi prefix NO_GARDU sesuai ULP login sebelum query ke server
+  // Validasi: jika adminulp, cek ULP gardu setelah data dimuat (bukan di sini)
+  // Validasi prefix dihapus agar gardu baru (dengan nomor non-standard) tetap bisa dicari
   var s = getSession();
-  if (s && s.role === 'adminulp' && s.ulp) {
-    var ulpKey = String(s.ulp).trim().toUpperCase();
-    var prefixArr = (ULP_SHEET_MAP[ulpKey] && ULP_SHEET_MAP[ulpKey].prefix) ? ULP_SHEET_MAP[ulpKey].prefix : [];
-    if (prefixArr.length > 0) {
-      var prefixMatch = prefixArr.some(function(p){ return noGardu.indexOf(p.toUpperCase()) === 0; });
-      if (!prefixMatch) {
-        var msgEl = document.getElementById('edit-gardu-msg');
-        var prefixLabel = prefixArr.join(', ');
-        if (msgEl) {
-          msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
-          msgEl.textContent='❌ NO GARDU "'+noGardu+'" tidak sesuai dengan '+s.ulp+'. Prefix yang valid: '+prefixLabel+'.';
-        } else {
-          alert('NO GARDU "'+noGardu+'" tidak sesuai '+s.ulp+'. Prefix yang valid: '+prefixLabel+'.');
-        }
-        document.getElementById('edit-gardu-fields').style.display = 'none';
-        return;
-      }
-    }
-  }
 
   apiGet({action:'getDetailGardu', noGardu:noGardu}, function(res){
     if (res.status!=='ok'||!res.data) { alert('Gardu tidak ditemukan: '+noGardu); return; }
