@@ -864,7 +864,7 @@ body{
       <img src="icon-192.png" alt="PLN" onerror="this.parentNode.innerHTML='<span style=\'font-size:24px;font-weight:900;color:#0A2D6B;\'>PLN</span>'">
     </div>
     <div class="login-title">PLN UP3 JAYAPURA</div>
-    <div class="login-sub">Manajemen Gardu</div>
+    <div class="login-sub">Sistem Monitoring Gardu Distribusi</div>
   </div>
   <div class="login-card">
     <div class="login-card-title">🔐 Masuk ke Sistem</div>
@@ -882,7 +882,7 @@ body{
     <div id="login-err" class="login-err">Username atau password salah.</div>
     <button class="login-btn" onclick="doLogin()">Masuk →</button>
   </div>
-  <div class="login-footer">PT. PLN (Persero) UP3 Jayapura</div>
+  <div class="login-footer">v3002 · PT. PLN (Persero) UP3 Jayapura</div>
 </div>
 
 <!-- ══ PWA INSTALL BANNER ══ -->
@@ -1824,7 +1824,7 @@ function hapusUser(username) {
 // ══════════════════════════════════════════════════════════════
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbxHzRxpbfQaKDBbWaDQryEIAHcYJTtYfnvvLcX1aNAUY9PNhOUInTPmn6G7nfa8ixI5gQ/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbx4OlJT1GjmttKcoVH37OLbwsiolHLIJziI8pToKyXDJTiJG37mE9Hbon-7S4S7cmITrg/exec';
 
 // ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
 // Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
@@ -2863,8 +2863,24 @@ function doExport() {
     var periodeLabel = getPeriodeLabel(periode);
     if      (fmt === 'A') generateXLSX(rows, periodeLabel, ulpFilter);
     else if (fmt === 'B') generatePrintHTML(rows, periodeLabel, ulpFilter);
-    else if (fmt === 'C') generateRekapStatusOperasi(rows, periodeLabel, ulpFilter);
-    else if (fmt === 'D') generateRekapStatusKepemilikan(rows, periodeLabel, ulpFilter);
+    else if (fmt === 'C' || fmt === 'D') {
+      // Format C & D: ambil data GARDU murni dari server (bukan data inspeksi)
+      var garduParams = { action: 'getRekapGardu' };
+      if (s && s.role !== 'superadmin' && s.ulp) {
+        var sheetValCD = ulpAkunToSheet(s.ulp);
+        if (sheetValCD) garduParams.ulp = sheetValCD;
+      }
+      document.getElementById('export-loading').style.display = 'block';
+      apiGet(garduParams, function(resGardu) {
+        document.getElementById('export-loading').style.display = 'none';
+        if (resGardu.status !== 'ok' || !resGardu.data) {
+          alert('Gagal memuat data gardu: ' + (resGardu.message||'')); return;
+        }
+        var garduRows = resGardu.data;
+        if (fmt === 'C') generateRekapStatusOperasi(garduRows, periodeLabel, ulpFilter);
+        else              generateRekapStatusKepemilikan(garduRows, periodeLabel, ulpFilter);
+      });
+    }
     document.getElementById('modal-export').style.display = 'none';
   });
 }
@@ -3656,16 +3672,18 @@ function generateRekapStatusOperasi(rows, periodeLabel, ulpFilter) {
   var tglCetak = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
   var ulpLabel = ulpFilter || 'Semua ULP';
 
-  // Bangun pivot: UNITUP → PENYULANG → { AKTIF, NON_AKTIF }
+  // Bangun pivot: UNITUP (kode numerik) → PENYULANG → { AKTIF, NON_AKTIF }
+  // Data dari getRekapGardu: field UNITUP = kode numerik (42110 dst), STATUS_OPERASIONAL
   var pivot = {};
+  var grandTotal = { AKTIF:0, NON:0 };
   rows.forEach(function(r) {
-    var unitup = r.unitup || r.ulp || '—';
-    var penyulang = r.penyulang || '—';
-    var status = (r.status||'').toUpperCase();
+    var unitup = String(r.unitup || r.UNITUP || '—').trim();
+    var penyulang = String(r.penyulang || r.PENYULANG || '—').trim().toUpperCase();
+    var status = String(r.statusOp || r.STATUS_OPERASIONAL || r.status || '').trim().toUpperCase();
     if (!pivot[unitup]) pivot[unitup] = {};
     if (!pivot[unitup][penyulang]) pivot[unitup][penyulang] = { AKTIF:0, NON:0 };
-    if (status === 'AKTIF') pivot[unitup][penyulang].AKTIF++;
-    else pivot[unitup][penyulang].NON++;
+    if (status === 'AKTIF') { pivot[unitup][penyulang].AKTIF++; grandTotal.AKTIF++; }
+    else { pivot[unitup][penyulang].NON++; grandTotal.NON++; }
   });
 
   var wb = new ExcelJS.Workbook();
@@ -3739,6 +3757,17 @@ function generateRekapStatusOperasi(rows, periodeLabel, ulpFilter) {
     rowNum++;
   });
 
+  // Grand Total row
+  ws.getCell(rowNum,1).value = 'Grand Total';
+  ws.mergeCells(rowNum,1,rowNum,2);
+  ws.getCell(rowNum,3).value = grandTotal.AKTIF;
+  ws.getCell(rowNum,4).value = grandTotal.NON;
+  ws.getCell(rowNum,5).value = grandTotal.AKTIF + grandTotal.NON;
+  [1,3,4,5].forEach(function(c){
+    ws.getCell(rowNum,c).style = { font:{bold:true,size:10,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:c===1?'left':'center',vertical:'middle'}, border:brd() };
+  });
+  ws.getRow(rowNum).height = 20;
+
   wb.xlsx.writeBuffer().then(function(buf){
     var blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var a = document.createElement('a');
@@ -3755,84 +3784,154 @@ function generateRekapStatusKepemilikan(rows, periodeLabel, ulpFilter) {
   var tglCetak = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
   var ulpLabel = ulpFilter || 'Semua ULP';
 
-  // Bangun pivot: UNITUP → PENYULANG → { NON:0, PLN:0 }
+  // Bangun pivot: UNITUP (kode numerik) → PENYULANG → { NON:0, PLN:0 }
+  // Data dari getRekapGardu: field UNITUP = kode numerik, STATUS_KEPEMILIKAN
+  // Kolom kepemilikan: PLN, NON — tampilkan semua nilai unik
   var pivot = {};
+  var allKepemilikanSet = {};
+  var grandTotalKep = {};
   rows.forEach(function(r) {
-    var unitup = r.unitup || r.ulp || '—';
-    var penyulang = r.penyulang || '—';
-    var kepemilikan = (r.kepemilikan||'').toUpperCase();
+    var unitup = String(r.unitup || r.UNITUP || '—').trim();
+    var penyulang = String(r.penyulang || r.PENYULANG || '—').trim().toUpperCase();
+    var kep = String(r.kepemilikan || r.STATUS_KEPEMILIKAN || '').trim().toUpperCase() || 'KOSONG';
     if (!pivot[unitup]) pivot[unitup] = {};
-    if (!pivot[unitup][penyulang]) pivot[unitup][penyulang] = { NON:0, PLN:0 };
-    if (kepemilikan === 'PLN') pivot[unitup][penyulang].PLN++;
-    else pivot[unitup][penyulang].NON++;
+    if (!pivot[unitup][penyulang]) pivot[unitup][penyulang] = {};
+    if (!pivot[unitup][penyulang][kep]) pivot[unitup][penyulang][kep] = 0;
+    pivot[unitup][penyulang][kep]++;
+    allKepemilikanSet[kep] = true;
+    if (!grandTotalKep[kep]) grandTotalKep[kep] = 0;
+    grandTotalKep[kep]++;
   });
+  // Urutan kolom kepemilikan: NON dulu, PLN, lalu lainnya
+  var kepOrder = ['NON','PLN','KOSONG','BELUM BERNOMOR'];
+  var allKepemilikan = kepOrder.filter(function(k){ return allKepemilikanSet[k]; });
+  Object.keys(allKepemilikanSet).forEach(function(k){ if (allKepemilikan.indexOf(k) === -1) allKepemilikan.push(k); });
+  var numKep = allKepemilikan.length;
+
+  var totalCols = 2 + numKep + 1; // UNITUP + PENYULANG + kolom kepemilikan + Grand Total
+  var colWidths = [{width:16},{width:28}];
+  allKepemilikan.forEach(function(){ colWidths.push({width:14}); });
+  colWidths.push({width:14});
 
   var wb = new ExcelJS.Workbook();
   wb.creator = 'PLN UP3 Jayapura';
   var ws = wb.addWorksheet('Rekap Status Kepemilikan', {
     pageSetup: { paperSize:9, orientation:'landscape', fitToPage:true }
   });
-  ws.columns = [{width:16},{width:28},{width:12},{width:12},{width:12}];
+  ws.columns = colWidths;
 
-  ws.mergeCells('A1:E1');
+  var lastColLetter = String.fromCharCode(64 + totalCols);
+
+  // Row 1: Judul
+  ws.mergeCells('A1:'+lastColLetter+'1');
   ws.getCell('A1').value = 'PT. PLN (PERSERO) UP3 JAYAPURA — TABEL JUMLAH GARDU PER PENYULANG BERDASARKAN STATUS KEPEMILIKAN';
   ws.getCell('A1').style = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} };
   ws.getRow(1).height = 24;
 
-  ws.mergeCells('A2:E2');
-  ws.getCell('A2').value = 'Periode: '+periodeLabel+' | ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
-  ws.getCell('A2').style = { font:{size:9,color:{argb:'FF555555'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF5A300'}}, alignment:{horizontal:'center',vertical:'middle'} };
+  // Row 2: Periode
+  ws.mergeCells('A2:'+lastColLetter+'2');
+  ws.getCell('A2').value = 'ULP: '+ulpLabel+' | Dicetak: '+tglCetak;
+  ws.getCell('A2').style = { font:{size:9,color:{argb:'FF333333'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF5A300'}}, alignment:{horizontal:'center',vertical:'middle'} };
   ws.getRow(2).height = 16;
 
-  ws.mergeCells('C3:E3');
-  ws.getCell('A3').value = 'UNITUP'; ws.getCell('B3').value = 'PENYULANG';
-  ws.getCell('C3').value = 'STATUS_KEPEMILIKAN';
-  ['A3','B3','C3'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  // Row 3: Header grup STATUS_KEPEMILIKAN
+  ws.getCell(3,1).value = 'UNITUP';
+  ws.getCell(3,2).value = 'PENYULANG';
+  if (numKep > 1) ws.mergeCells(3, 3, 3, 2 + numKep);
+  ws.getCell(3,3).value = 'STATUS_KEPEMILIKAN';
+  ws.getCell(3, totalCols).value = '';
+  var hdrStyle = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'}, border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}} };
+  for (var hc = 1; hc <= totalCols; hc++) ws.getCell(3, hc).style = hdrStyle;
   ws.getRow(3).height = 20;
 
-  ws.getCell('C4').value = 'NON'; ws.getCell('D4').value = 'PLN'; ws.getCell('E4').value = 'Grand Total';
-  ['C4','D4','E4'].forEach(function(a){ ws.getCell(a).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:'center',vertical:'middle'} }; });
+  // Row 4: Sub-header kolom kepemilikan + Grand Total
+  ws.getCell(4,1).value = ''; ws.getCell(4,2).value = '';
+  ws.getCell(4,1).style = hdrStyle; ws.getCell(4,2).style = hdrStyle;
+  allKepemilikan.forEach(function(k, ki) {
+    var cell = ws.getCell(4, 3 + ki);
+    cell.value = k;
+    cell.style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:'center',vertical:'middle'}, border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}} };
+  });
+  ws.getCell(4, totalCols).value = 'Grand Total';
+  ws.getCell(4, totalCols).style = { font:{bold:true,size:9,color:{argb:'FFFFFFFF'},name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:'center',vertical:'middle'}, border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}} };
   ws.getRow(4).height = 18;
 
+  function brd() { var t={style:'thin',color:{argb:'FFBDBDBD'}}; return {top:t,bottom:t,left:t,right:t}; }
+
   var rowNum = 5;
-  var C = { border:'FFBDBDBD', alt:'FFF5FFF5' };
-  function brd() { var t={style:'thin',color:{argb:C.border}}; return {top:t,bottom:t,left:t,right:t}; }
+  var overallGrandTotal = 0;
+  var overallKepTotal = {};
+  allKepemilikan.forEach(function(k){ overallKepTotal[k] = 0; });
 
   Object.keys(pivot).sort().forEach(function(unitup) {
     var penyulangList = Object.keys(pivot[unitup]).sort();
     var unitupStartRow = rowNum;
-    var unitupTotal = {NON:0, PLN:0};
+    var unitupKepTotal = {};
+    allKepemilikan.forEach(function(k){ unitupKepTotal[k] = 0; });
 
     penyulangList.forEach(function(penyulang, pi) {
       var d = pivot[unitup][penyulang];
       var isAlt = pi % 2 === 1;
-      var bg = isAlt ? C.alt : 'FFFFFFFF';
+      var bg = isAlt ? 'FFF5FFF5' : 'FFFFFFFF';
+      var rowTotal = 0;
+
       ws.getCell(rowNum,1).value = pi === 0 ? unitup : '';
       ws.getCell(rowNum,2).value = penyulang;
-      ws.getCell(rowNum,3).value = d.NON || '';
-      ws.getCell(rowNum,4).value = d.PLN || '';
-      ws.getCell(rowNum,5).value = d.NON + d.PLN;
-      [1,2,3,4,5].forEach(function(c){
-        ws.getCell(rowNum,c).style = { font:{size:9,name:'Calibri',bold:c<=2&&pi===0}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:c<=2?'left':'center',vertical:'middle'}, border:brd() };
+      ws.getCell(rowNum,1).style = { font:{size:9,name:'Calibri',bold:pi===0}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:'left',vertical:'middle'}, border:brd() };
+      ws.getCell(rowNum,2).style = { font:{size:9,name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:'left',vertical:'middle'}, border:brd() };
+
+      allKepemilikan.forEach(function(k, ki) {
+        var val = d[k] || 0;
+        rowTotal += val;
+        unitupKepTotal[k] += val;
+        overallKepTotal[k] += val;
+        var cell = ws.getCell(rowNum, 3 + ki);
+        cell.value = val || '';
+        cell.style = { font:{size:9,name:'Calibri'}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:'center',vertical:'middle'}, border:brd() };
       });
+
+      ws.getCell(rowNum, totalCols).value = rowTotal;
+      ws.getCell(rowNum, totalCols).style = { font:{size:9,name:'Calibri',bold:true}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}}, alignment:{horizontal:'center',vertical:'middle'}, border:brd() };
+      overallGrandTotal += rowTotal;
       ws.getRow(rowNum).height = 16;
-      unitupTotal.NON += d.NON; unitupTotal.PLN += d.PLN;
       rowNum++;
     });
 
-    if (penyulangList.length > 1) ws.mergeCells(unitupStartRow,1,rowNum-1,1);
+    if (penyulangList.length > 1) ws.mergeCells(unitupStartRow, 1, rowNum-1, 1);
 
-    ws.getCell(rowNum,1).value = unitup+' Total';
-    ws.mergeCells(rowNum,1,rowNum,2);
-    ws.getCell(rowNum,3).value = unitupTotal.NON;
-    ws.getCell(rowNum,4).value = unitupTotal.PLN;
-    ws.getCell(rowNum,5).value = unitupTotal.NON + unitupTotal.PLN;
-    [1,3,4,5].forEach(function(c){
-      ws.getCell(rowNum,c).style = { font:{bold:true,size:9,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:c===1?'left':'center',vertical:'middle'}, border:brd() };
+    // Total per UNITUP
+    var unitupRowTotal = 0;
+    ws.getCell(rowNum,1).value = unitup + ' Total';
+    ws.mergeCells(rowNum, 1, rowNum, 2);
+    var totStyle = { font:{bold:true,size:9,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1B5E20'}}, alignment:{horizontal:'center',vertical:'middle'}, border:brd() };
+    ws.getCell(rowNum,1).style = Object.assign({}, totStyle, {alignment:{horizontal:'left',vertical:'middle'}});
+    allKepemilikan.forEach(function(k, ki) {
+      var v = unitupKepTotal[k];
+      unitupRowTotal += v;
+      ws.getCell(rowNum, 3+ki).value = v;
+      ws.getCell(rowNum, 3+ki).style = totStyle;
     });
+    ws.getCell(rowNum, totalCols).value = unitupRowTotal;
+    ws.getCell(rowNum, totalCols).style = totStyle;
     ws.getRow(rowNum).height = 18;
     rowNum++;
   });
+
+  // Grand Total
+  ws.getCell(rowNum,1).value = 'Grand Total';
+  ws.mergeCells(rowNum, 1, rowNum, 2);
+  var gtStyle = { font:{bold:true,size:10,name:'Calibri',color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF003B7B'}}, alignment:{horizontal:'center',vertical:'middle'}, border:brd() };
+  ws.getCell(rowNum,1).style = Object.assign({}, gtStyle, {alignment:{horizontal:'left',vertical:'middle'}});
+  var finalTotal = 0;
+  allKepemilikan.forEach(function(k, ki) {
+    var v = overallKepTotal[k];
+    finalTotal += v;
+    ws.getCell(rowNum, 3+ki).value = v;
+    ws.getCell(rowNum, 3+ki).style = gtStyle;
+  });
+  ws.getCell(rowNum, totalCols).value = finalTotal;
+  ws.getCell(rowNum, totalCols).style = gtStyle;
+  ws.getRow(rowNum).height = 20;
 
   wb.xlsx.writeBuffer().then(function(buf){
     var blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
